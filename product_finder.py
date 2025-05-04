@@ -4,7 +4,7 @@ import base64
 import asyncio
 import httpx
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 import extruct
 import json
 from dotenv import load_dotenv
@@ -105,14 +105,21 @@ async def google_reverse_image(img_bytes: bytes) -> list[str]:
     except Exception as e:
         print(f"Metrics not available: {e}")
     
+    # Skip if feature flag is disabled
+    if not is_enabled("SERPAPI_REVIMG"):
+        print("SerpAPI reverse image search is disabled by feature flag")
+        return await _google_search_by_keyword(caption="furniture item")
+    
     try:
+        print("Performing SerpAPI reverse image search with direct file upload")
+        
         # Time the execution if the function is available
         try:
             with timed_execution("google_reverse_image", {"provider": "serpapi"}):
-                return await _do_google_reverse_image(img_bytes)
+                return await _do_serpapi_reverse_image(img_bytes)
         except Exception:
             # Fall back to direct execution if timed_execution is not available
-            return await _do_google_reverse_image(img_bytes)
+            return await _do_serpapi_reverse_image(img_bytes)
     except Exception as e:
         # Try to record error metrics if available
         try:
@@ -120,79 +127,112 @@ async def google_reverse_image(img_bytes: bytes) -> list[str]:
             api_errors(provider="serpapi", endpoint="reverse_image_search", error_type=error_type)
         except Exception:
             pass
-        print(f"Error in Google reverse image search: {e}")
-        return []
+        print(f"Error in SerpAPI reverse image search: {e}")
+        
+        # Fall back to keyword-based search
+        print("Falling back to keyword-based search")
+        return await _google_search_by_keyword()
 
-async def _do_google_reverse_image(img_bytes: bytes) -> list[str]:
-    """Implementation of Google reverse image search"""
-    # First try the text-based search as a fallback
-    caption = "modern furniture home decor"
-    
-    # Try to extract image features for better search
+async def _do_serpapi_reverse_image(img_bytes: bytes) -> list[str]:
+    """
+    Implementation of SerpAPI reverse image search using direct file upload.
+    This gives better results than the previous text-based search approach.
+    """
     try:
-        # Create a temporary file for the image
+        # Use multipart/form-data request with image file
+        url = "https://serpapi.com/search"
+        
+        # Create temporary file for the image
         temp_path = "temp_search_image.jpg"
         with open(temp_path, "wb") as f:
             f.write(img_bytes)
         
-        # Try to get a better caption from the image
-        img = Image.open(BytesIO(img_bytes))
-        width, height = img.size
-        aspect_ratio = width / height
+        # Prepare the request using httpx
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # First try direct reverse image search with file upload
+            params = {
+                "engine": "google_lens",
+                "api_key": SERP_KEY,
+                "google_domain": "google.com",
+                "hl": "en"
+            }
+            
+            # Read the file in binary mode
+            with open(temp_path, "rb") as f:
+                files = {"image_file": ("image.jpg", f, "image/jpeg")}
+                
+                # Post request with image file
+                print("Sending image to SerpAPI Google Lens API...")
+                response = await client.post(url, params=params, files=files)
+                response.raise_for_status()
+                data = response.json()
+                
+                # Extract product links from the response
+                product_links = []
+                
+                # Check for visual matches
+                if "visual_matches" in data:
+                    print(f"Found {len(data['visual_matches'])} visual matches")
+                    for item in data["visual_matches"]:
+                        if "link" in item and item["link"].startswith("http"):
+                            product_links.append(item["link"])
+                
+                # Extract shopping results
+                if "shopping_results" in data:
+                    print(f"Found {len(data['shopping_results'])} shopping results from image search")
+                    for item in data["shopping_results"]:
+                        if "link" in item and item["link"].startswith("http"):
+                            product_links.append(item["link"])
+                            
+                        # Also check for product_link which is a more specific field
+                        if "product_link" in item and item["product_link"].startswith("http"):
+                            product_links.append(item["product_link"])
+                
+                # Try a secondary search: Google Shopping search
+                if len(product_links) < 2 and "google_related_searches" in data:
+                    related_terms = [item.get("query", "") for item in data.get("google_related_searches", [])]
+                    
+                    if related_terms:
+                        best_term = related_terms[0]  # Use the most relevant term
+                        print(f"Using related search term from image: '{best_term}'")
+                        
+                        # Run a Google Shopping search with the related term
+                        shop_params = {
+                            "engine": "google_shopping",
+                            "api_key": SERP_KEY,
+                            "q": f"{best_term} buy",
+                            "google_domain": "google.com",
+                            "gl": "us",
+                            "hl": "en"
+                        }
+                        
+                        shop_response = await client.get(url, params=shop_params)
+                        if shop_response.status_code == 200:
+                            shop_data = shop_response.json()
+                            
+                            if "shopping_results" in shop_data:
+                                print(f"Found {len(shop_data['shopping_results'])} shopping results from keyword")
+                                for item in shop_data["shopping_results"]:
+                                    if "product_link" in item and item["product_link"].startswith("http"):
+                                        product_links.append(item["product_link"])
+                
+                # Remove duplicates
+                unique_links = []
+                for link in product_links:
+                    if link not in unique_links:
+                        unique_links.append(link)
+                
+                if unique_links:
+                    print(f"Found {len(unique_links)} product links from reverse image search")
+                    return unique_links[:20]  # Return top 20 links
         
-        if aspect_ratio > 1.5:
-            caption = "wide rectangular furniture"
-        elif aspect_ratio < 0.7:
-            caption = "tall furniture piece"
-        else:
-            caption = "furniture living room decor"
+        # If we get here with no results, fall back to caption-based search
+        return await _google_search_by_keyword()
+        
     except Exception as e:
-        print(f"Error analyzing image: {e}")
-    
-    # Use a keyword search with SerpAPI instead of reverse image
-    print(f"Running Google Shopping search for: '{caption}'")
-    
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        params = {
-            "engine": "google_shopping",
-            "api_key": SERP_KEY,
-            "q": caption + " furniture",
-            "google_domain": "google.com",
-            "gl": "us",
-            "hl": "en",
-            "num": 20
-        }
-        
-        response = await client.get("https://serpapi.com/search", params=params)
-        response.raise_for_status()
-        data = response.json()
-        
-        # Extract shopping results
-        shopping_results = []
-        
-        # Try to get shopping results
-        if 'shopping_results' in data:
-            for result in data['shopping_results']:
-                link = result.get('link')
-                if link and isinstance(link, str):
-                    shopping_results.append(link)
-        
-        # Filter out Google Shopping links and duplicates
-        filtered_results = []
-        for link in shopping_results:
-            if 'google.com/shopping' not in link and link not in filtered_results:
-                filtered_results.append(link)
-        
-        print(f"Found {len(filtered_results)} product links from Google Shopping search")
-        
-        # Try to record metrics if available
-        try:
-            api_latency.observe(response.elapsed.total_seconds() * 1000, 
-                               provider="serpapi", endpoint="shopping_search")
-        except Exception:
-            pass
-        
-        return filtered_results
+        print(f"Error in SerpAPI reverse image search: {e}")
+        # Fall back to caption-based search
+        return await _google_search_by_keyword()
 
 async def _google_search_by_keyword(query: str = None) -> list[str]:
     """Fallback for when image search fails - use keyword search instead"""
@@ -230,16 +270,52 @@ async def _google_search_by_keyword(query: str = None) -> list[str]:
 @retry_async(max_retries=3)
 @with_circuit_breaker(service="serpapi")
 @cached
-async def google_search(query: str, max_results=5) -> List[Dict[str, Any]]:
+async def google_search(query: str or List[str], max_results=5) -> List[Dict[str, Any]]:
     """
-    Enhanced Google search with caching and error handling
+    Enhanced Google search with caching and error handling.
+    
+    Args:
+        query: Search query or list of queries to run in parallel
+        max_results: Maximum number of results to return per query
+        
+    Returns:
+        List of product dictionaries
     """
     if not SERP_KEY:
         print("No SerpAPI key provided, skipping Google search")
         return []
     
-    print(f"Running Google Shopping search for: {query}")
+    # Handle both string and list inputs
+    if isinstance(query, str):
+        queries = [query]
+    else:
+        queries = query
+        
+    print(f"Running Google Shopping search for: {queries}")
     
+    if is_enabled("PARALLEL_CAPTION_SEARCH") and len(queries) > 1:
+        # Run searches in parallel
+        tasks = [_run_single_google_search(q, max_results) for q in queries]
+        results_lists = await asyncio.gather(*tasks)
+        
+        # Combine results, removing duplicates
+        combined_results = []
+        seen_urls = set()
+        
+        for results in results_lists:
+            for item in results:
+                if "url" in item and item["url"] not in seen_urls:
+                    seen_urls.add(item["url"])
+                    combined_results.append(item)
+        
+        # Sort by relevance (based on result order) and return
+        return combined_results[:max_results]
+    else:
+        # Run just the first query
+        return await _run_single_google_search(queries[0], max_results)
+
+async def _run_single_google_search(query: str, max_results=5) -> List[Dict[str, Any]]:
+    """Helper function to run a single Google Shopping search"""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             params = {
@@ -303,12 +379,67 @@ async def google_search(query: str, max_results=5) -> List[Dict[str, Any]]:
 @retry_async(max_retries=2)
 @with_circuit_breaker(service="rapidapi")
 @cached
-async def amazon_search(query: str, max_hits=20, page: int = 1, country: str = "US", sort_by: str = "RELEVANCE", product_condition: str = "ALL", is_prime: bool = False, deals_and_discounts: str = "NONE", **kwargs) -> list[dict]:
-    """Search Amazon for products based on a text query with RapidAPI parameters"""
+async def amazon_search(query: str or List[str], max_hits=20, page: int = 1, country: str = "US", sort_by: str = "RELEVANCE", product_condition: str = "ALL", is_prime: bool = False, deals_and_discounts: str = "NONE", **kwargs) -> list[dict]:
+    """
+    Search Amazon for products based on a text query with RapidAPI parameters
+    
+    Args:
+        query: Search query or list of queries to run in parallel
+        max_hits: Maximum number of results to return
+        page: Page number for pagination
+        country: Country code for Amazon site
+        sort_by: Sort method (RELEVANCE, PRICE_LOW_TO_HIGH, etc.)
+        product_condition: Filter by product condition (ALL, NEW, USED, etc.)
+        is_prime: Filter for Prime-eligible items
+        deals_and_discounts: Filter for deals (NONE, DEALS, TODAY_DEALS)
+        **kwargs: Additional filters (category_id, min_price, etc.)
+        
+    Returns:
+        List of product dictionaries
+    """
     if not AMAZON_RAPID_KEY or AMAZON_RAPID_KEY == "732af5ccd8msh9d3c01da8429b19p1f38d8jsnc3b4b20a28d8":
         print("No valid Amazon Rapid API key provided, skipping Amazon search")
         return []
         
+    # Handle both string and list inputs
+    if isinstance(query, str):
+        queries = [query]
+    else:
+        queries = query
+        
+    print(f"Searching Amazon for: {queries} (page={page}, country={country})")
+    
+    if is_enabled("PARALLEL_CAPTION_SEARCH") and len(queries) > 1:
+        # Run searches in parallel
+        tasks = [_run_single_amazon_search(q, max_hits, page, country, sort_by, 
+                                         product_condition, is_prime, 
+                                         deals_and_discounts, **kwargs) 
+                for q in queries]
+        results_lists = await asyncio.gather(*tasks)
+        
+        # Combine results, removing duplicates
+        combined_results = []
+        seen_urls = set()
+        
+        for results in results_lists:
+            for item in results:
+                if "url" in item and item["url"] not in seen_urls:
+                    seen_urls.add(item["url"])
+                    combined_results.append(item)
+        
+        print(f"Combined {len(combined_results)} Amazon results from {len(queries)} queries")
+        return combined_results[:max_hits]
+    else:
+        # Run just the first query
+        return await _run_single_amazon_search(queries[0], max_hits, page, country, 
+                                            sort_by, product_condition, is_prime, 
+                                            deals_and_discounts, **kwargs)
+
+async def _run_single_amazon_search(query: str, max_hits=20, page: int = 1, country: str = "US", 
+                                  sort_by: str = "RELEVANCE", product_condition: str = "ALL", 
+                                  is_prime: bool = False, deals_and_discounts: str = "NONE", 
+                                  **kwargs) -> list[dict]:
+    """Helper function to run a single Amazon search"""
     # Use Real-Time Amazon Data API (RapidAPI) search endpoint
     url = "https://real-time-amazon-data.p.rapidapi.com/search"
     headers = {
@@ -390,59 +521,145 @@ async def bing_visual_search(image_data: bytes) -> List[Dict[str, Any]]:
         print(f"Error with Bing Visual Search: {e}")
         return []
 
-async def simple_caption(img_path: str, object_label: str = None) -> str:
-    """Generate a simple caption for an image using available models"""
-    # If we have the object label, use it for a better caption
-    if object_label and object_label.lower() not in ("unknown", "custom"):
-        caption = f"modern {object_label} for living room"
-        print(f"Using object label for caption: {caption}")
-        return caption
+async def simple_caption(img_path: str, object_label: str = None) -> List[str]:
+    """
+    Generate multiple rich captions for an image using available models and techniques.
     
-    try:
-        # First try to use OpenAI's gpt-4o-mini if key is available
-        openai_key = os.getenv("OPENAI_API_KEY")
-        if openai_key:
-            import openai
-            b64 = base64.b64encode(Path(img_path).read_bytes()).decode()
-            openai.api_key = openai_key
-            
-            try:
-                rsp = openai.ChatCompletion.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role":"user",
-                               "content":[
-                                 {"type":"text","text":"Describe the main object in five words"},
-                                 {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}
-                               ]}],
-                    max_tokens=10
-                )
-                caption = rsp.choices[0].message.content.strip()
-                print(f"Generated caption with OpenAI: {caption}")
-                return caption
-            except Exception as e:
-                print(f"Error with OpenAI caption: {e}")
+    Args:
+        img_path: Path to the image
+        object_label: Optional class label from object detection
+    
+    Returns:
+        List of caption strings for search, from most to least specific
+    """
+    captions = []
+    
+    # If we have the object label, use it for a basic caption
+    if object_label and object_label.lower() not in ("unknown", "custom"):
+        basic_caption = f"modern {object_label} for living room"
+        captions.append(basic_caption)
+    
+    # Check if GPT-4o caption generation is enabled
+    if is_enabled("GPT4O_CAPTIONS"):
+        try:
+            # Try to use OpenAI's gpt-4o if key is available
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if openai_key:
+                import openai
+                client = openai.OpenAI(api_key=openai_key)
+                b64 = base64.b64encode(Path(img_path).read_bytes()).decode()
                 
-        # Fallback: Use simple hardcoded captions based on the image dimensions
-        img = Image.open(img_path)
-        width, height = img.size
-        aspect_ratio = width / height
+                # First get detailed description
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "You are a furniture and interior design expert."},
+                            {"role": "user", "content": [
+                                {"type": "text", "text": "Describe this furniture item in 5-7 words. Focus on style, color, material, and specific type."},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                            ]}
+                        ],
+                        max_tokens=30
+                    )
+                    
+                    gpt_caption = response.choices[0].message.content.strip()
+                    captions.append(gpt_caption)
+                    
+                    # Also get material info
+                    if is_enabled("MATERIAL_DETECTOR"):
+                        material_response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "You are a furniture and interior design expert."},
+                                {"role": "user", "content": [
+                                    {"type": "text", "text": "What material is this furniture made of? Answer with just one word."},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                                ]}
+                            ],
+                            max_tokens=10
+                        )
+                        
+                        material = material_response.choices[0].message.content.strip().lower()
+                        if material and len(material) < 20:  # Sanity check on response
+                            if object_label:
+                                material_caption = f"{material} {object_label}"
+                                captions.append(material_caption)
+                    
+                    print(f"Generated GPT-4o caption: {gpt_caption}")
+                except Exception as e:
+                    print(f"Error with detailed GPT caption: {e}")
+                    
+        except Exception as e:
+            print(f"Error with GPT-4o caption generation: {e}")
+    
+    # Try color extraction if enabled
+    if is_enabled("COLOR_EXTRACTOR"):
+        try:
+            from utils.image_color import get_material_color_keywords
+            
+            color_info = get_material_color_keywords(img_path)
+            color = color_info.get("color", "")
+            material = color_info.get("material", "")
+            
+            if color and object_label:
+                color_caption = f"{color} {object_label}"
+                captions.append(color_caption)
+                
+            if material and object_label and material != "unknown":
+                material_caption = f"{material} {object_label}"
+                if material_caption not in captions:
+                    captions.append(material_caption)
+                    
+            print(f"Extracted color keywords: {color_info}")
+        except Exception as e:
+            print(f"Error with color extraction: {e}")
+            
+    # Fallback: Use simple heuristics based on the image dimensions
+    if not captions:
+        try:
+            img = Image.open(img_path)
+            width, height = img.size
+            aspect_ratio = width / height
+            
+            if aspect_ratio > 1.5:
+                captions.append("wide rectangular furniture item")
+            elif aspect_ratio < 0.7:
+                captions.append("tall furniture piece")
+            elif width > 300 and height > 300:
+                captions.append("large furniture item home decor")
+            else:
+                captions.append("small furniture decor item")
+        except Exception as e:
+            print(f"Error generating caption based on dimensions: {e}")
+            captions.append("furniture home decor item")
+    
+    # If we still have no captions, add a default one
+    if not captions:
+        captions.append("furniture home decor item")
         
-        if aspect_ratio > 1.5:
-            return "wide rectangular furniture item"
-        elif aspect_ratio < 0.7:
-            return "tall furniture piece"
-        elif width > 300 and height > 300:
-            return "large furniture item home decor"
-        else:
-            return "small furniture decor item"
-    except Exception as e:
-        print(f"Error generating caption: {e}")
-        return "furniture home decor item"
+    # Remove duplicates while preserving order
+    unique_captions = []
+    for caption in captions:
+        if caption not in unique_captions:
+            unique_captions.append(caption)
+            
+    print(f"Generated captions: {unique_captions}")
+    return unique_captions
 
 @retry_async(max_retries=3)
-async def verify_product_url(url: str) -> Dict[str, Any]:
+async def verify_product_url(url: str, original_image_path: str = None) -> Dict[str, Any]:
     """
-    Verify a product URL and extract schema data with more lenient validation
+    Verify a product URL and extract schema data with more lenient validation.
+    If an original image is provided and SSIM validation is enabled, will compare
+    product images for visual similarity.
+    
+    Args:
+        url: URL to verify
+        original_image_path: Path to the original product image for comparison
+        
+    Returns:
+        Dictionary with product information and validation status
     """
     # Skip validation for Google Shopping URLs - they're already verified
     if "shopping.google.com" in url:
@@ -453,7 +670,8 @@ async def verify_product_url(url: str) -> Dict[str, Any]:
             "price": "See website for price",
             "currency": "USD",
             "retailer": "Google Shopping",
-            "valid": True
+            "valid": True,
+            "confidence": 0.8  # Reasonable default confidence
         }
     
     # For URLs from Google Shopping results, trust them more
@@ -464,7 +682,8 @@ async def verify_product_url(url: str) -> Dict[str, Any]:
             "price": "See website for price",
             "currency": "USD",
             "retailer": "Google Shopping",
-            "valid": True
+            "valid": True,
+            "confidence": 0.7  # Slightly lower confidence than direct product URLs
         }
     
     # First check if this URL matches known retailer patterns
@@ -494,7 +713,8 @@ async def verify_product_url(url: str) -> Dict[str, Any]:
                 "price": "See website for price",
                 "currency": "USD",
                 "retailer": known_retailer.split('.')[0].title(),
-                "valid": True
+                "valid": True,
+                "confidence": 0.75  # Good default confidence for known retailers
             }
     
     # Resolve Google Shopping redirects first
@@ -508,6 +728,17 @@ async def verify_product_url(url: str) -> Dict[str, Any]:
                 print(f"  Status code {r.status_code} - rejecting")
                 return {"valid": False, "url": url, "reason": f"status_code_{r.status_code}"}
             
+            # Initialize variables
+            product_data = {
+                "url": url,
+                "title": "Unknown Product",
+                "price": "See website for price",
+                "currency": "USD",
+                "retailer": urlparse(url).netloc.split(":")[0].replace("www.", ""),
+                "valid": True,
+                "confidence": 0.6  # Default confidence
+            }
+            
             # Try to extract product schema data
             try:
                 data = extruct.extract(r.text, base_url=url)
@@ -515,32 +746,122 @@ async def verify_product_url(url: str) -> Dict[str, Any]:
                 
                 if prod:
                     offers = prod.get("offers", {})
-                    result = {
-                        "url": url,
-                        "title": prod.get("name", "Unknown Product"),
-                        "price": offers.get("price", "See website for price"),
-                        "currency": offers.get("priceCurrency", "USD"),
-                        "retailer": urlparse(url).netloc.split(":")[0],
-                        "valid": True
-                    }
-                    print(f"  Valid product: {result['title']} ({result['price']} {result['currency']})")
-                    return result
+                    product_data.update({
+                        "title": prod.get("name", product_data["title"]),
+                        "price": offers.get("price", product_data["price"]),
+                        "currency": offers.get("priceCurrency", product_data["currency"]),
+                        "confidence": 0.8  # Higher confidence for schema-verified products
+                    })
+                    print(f"  Valid product: {product_data['title']} ({product_data['price']} {product_data['currency']})")
             except Exception as schema_error:
                 print(f"  Error extracting schema: {schema_error}")
             
-            # If schema extraction fails, create a basic product entry from the URL
-            domain = urlparse(url).netloc.replace("www.", "")
-            title = domain.split(".")[0].title() + " Product"
+            # If SSIM validation is enabled and we have an original image, compare product images
+            if is_enabled("SSIM_PRODUCT_VALIDATION") and original_image_path:
+                try:
+                    from bs4 import BeautifulSoup
+                    from skimage.metrics import structural_similarity as ssim
+                    import cv2
+                    
+                    # Parse the HTML
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    
+                    # Try to find product images
+                    product_image_url = None
+                    
+                    # First try OpenGraph image
+                    og_image = soup.find('meta', property='og:image')
+                    if og_image and og_image.get('content'):
+                        product_image_url = og_image.get('content')
+                    
+                    # If not found, try other common image elements
+                    if not product_image_url:
+                        # Look for product image in common containers
+                        img_tags = []
+                        for selector in ['#product-image', '.product-image', '.product-img', '#main-image', '.main-image']:
+                            img_tag = soup.select_one(selector)
+                            if img_tag:
+                                img_tags.append(img_tag)
+                                
+                        # Also try to find largest image on the page
+                        all_imgs = soup.find_all('img')
+                        largest_img = None
+                        largest_area = 0
+                        
+                        for img in all_imgs:
+                            # Check for common product image attributes
+                            if any(attr in img.get('class', []) for attr in ['product', 'main', 'hero', 'featured']):
+                                img_tags.append(img)
+                                
+                            # Check for large images
+                            width = img.get('width')
+                            height = img.get('height')
+                            if width and height:
+                                try:
+                                    w, h = int(width), int(height)
+                                    area = w * h
+                                    if area > largest_area:
+                                        largest_area = area
+                                        largest_img = img
+                                except ValueError:
+                                    pass
+                        
+                        if largest_img:
+                            img_tags.append(largest_img)
+                            
+                        # Extract URLs from found images
+                        for img in img_tags:
+                            if img.get('src'):
+                                product_image_url = img.get('src')
+                                # Make absolute URL if relative
+                                if not product_image_url.startswith(('http://', 'https://')):
+                                    base_url = get_base_url(url, r.text)
+                                    product_image_url = urljoin(base_url, product_image_url)
+                                break
+                    
+                    # If we found a product image, download and compare
+                    if product_image_url:
+                        print(f"  Found product image: {product_image_url}")
+                        try:
+                            # Download product image
+                            async with httpx.AsyncClient(timeout=10) as img_client:
+                                img_response = await img_client.get(product_image_url)
+                                if img_response.status_code == 200:
+                                    # Save product image temporarily
+                                    product_img_path = "temp_product_image.jpg"
+                                    with open(product_img_path, "wb") as f:
+                                        f.write(img_response.content)
+                                    
+                                    # Load images for comparison
+                                    original_img = cv2.imread(original_image_path)
+                                    product_img = cv2.imread(product_img_path)
+                                    
+                                    if original_img is not None and product_img is not None:
+                                        # Resize to match
+                                        h, w = original_img.shape[:2]
+                                        product_img = cv2.resize(product_img, (w, h))
+                                        
+                                        # Convert to grayscale for SSIM
+                                        original_gray = cv2.cvtColor(original_img, cv2.COLOR_BGR2GRAY)
+                                        product_gray = cv2.cvtColor(product_img, cv2.COLOR_BGR2GRAY)
+                                        
+                                        # Calculate SSIM
+                                        similarity_score, _ = ssim(original_gray, product_gray, full=True)
+                                        print(f"  SSIM score: {similarity_score:.2f}")
+                                        
+                                        # Update confidence based on similarity
+                                        if similarity_score > 0.4:  # Reasonable threshold for furniture
+                                            product_data["confidence"] = max(product_data["confidence"], similarity_score)
+                                            print(f"  Matched with confidence: {similarity_score:.2f}")
+                                            
+                                            # Add image to product data
+                                            product_data["image"] = product_image_url
+                        except Exception as img_error:
+                            print(f"  Error comparing images: {img_error}")
+                except Exception as bs_error:
+                    print(f"  Error extracting product images: {bs_error}")
             
-            # Create a basic product entry
-            return {
-                "url": url,
-                "title": title,
-                "price": "See website for price",
-                "currency": "USD",
-                "retailer": domain.split(".")[0].title(),
-                "valid": True  # Be more lenient - accept URLs even without schema
-            }
+            return product_data
     except Exception as e:
         print(f"  Error verifying {url}: {e}")
         return {"valid": False, "url": url, "reason": str(e)}
@@ -614,8 +935,8 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
         # Resize image for API requests
         img_bytes = resize_image_for_api(crop_path)
         
-        # Generate a caption for the image using the object class if available
-        caption = await simple_caption(crop_path, obj_class)
+        # Generate captions for the image using the object class if available
+        captions = await simple_caption(crop_path, obj_class)
         
         # Use additional metadata if provided
         if object_metadata:
@@ -623,15 +944,18 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
             # We could use the bbox/dimensions for more targeted search
             if 'class' in object_metadata and not obj_class:
                 obj_class = object_metadata['class']
-                caption = await simple_caption(crop_path, obj_class)
+                # Regenerate captions with the class
+                captions = await simple_caption(crop_path, obj_class)
         
-        print(f"Caption: {caption}")
+        # Print the captions for debugging
+        caption_str = ", ".join(captions) if isinstance(captions, list) else captions
+        print(f"Caption(s): {caption_str}")
         
         # Start concurrent API calls
         print("Starting concurrent API searches...")
         reverse_image_task = google_reverse_image(img_bytes)
-        amazon_search_task = amazon_search(caption, max_results)
-        google_search_task = google_search(caption, max_results)
+        amazon_search_task = amazon_search(captions, max_results)
+        google_search_task = google_search(captions, max_results)
         
         # Conditionally add Bing search if API key is available
         search_tasks = [reverse_image_task, amazon_search_task, google_search_task]
@@ -680,7 +1004,8 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
                     "retailer": item.get("retailer", item.get("source", "Google Shopping")),
                     "source": "google_shopping",
                     "valid": True,
-                    "image": item.get("thumbnail", item.get("image", ""))
+                    "image": item.get("thumbnail", item.get("image", "")),
+                    "confidence": 0.8  # Good default confidence for Google Shopping results
                 }
                 final_products.append(product)
                 print(f"Added Google Shopping product: {product['title'][:30]}...")
@@ -698,7 +1023,8 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
                     "currency": item.get("currency", "USD"),
                     "retailer": "Amazon",
                     "source": "amazon",
-                    "valid": True
+                    "valid": True,
+                    "confidence": 0.75  # Good default confidence for Amazon results
                 }
                 final_products.append(product)
         
@@ -725,7 +1051,7 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
                 batch = all_link_items[i:i+batch_size]
                 batch_urls = [item["url"] for item in batch]
                 
-                verification_tasks = [verify_product_url(url) for url in batch_urls]
+                verification_tasks = [verify_product_url(url, crop_path) for url in batch_urls]
                 verification_results = await asyncio.gather(*verification_tasks, return_exceptions=True)
                 
                 # Process results and match with original metadata
@@ -746,7 +1072,7 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
             print("No valid products found, creating fallback products")
             
             # Create fallback products based on the object class
-            product_type = obj_class if obj_class else caption.split()[0]
+            product_type = obj_class if obj_class else captions[0]
             
             fallback_products = [
                 {
@@ -756,7 +1082,8 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
                     "currency": "USD",
                     "retailer": "Amazon",
                     "source": "fallback",
-                    "valid": True
+                    "valid": True,
+                    "confidence": 0.3  # Low confidence for fallback results
                 },
                 {
                     "url": f"https://www.wayfair.com/keyword.php?keyword={product_type.replace(' ', '+')}",
@@ -765,7 +1092,8 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
                     "currency": "USD",
                     "retailer": "Wayfair",
                     "source": "fallback",
-                    "valid": True
+                    "valid": True,
+                    "confidence": 0.3
                 },
                 {
                     "url": f"https://www.ikea.com/us/en/search/?q={product_type.replace(' ', '+')}",
@@ -774,19 +1102,93 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
                     "currency": "USD",
                     "retailer": "IKEA",
                     "source": "fallback",
-                    "valid": True
+                    "valid": True,
+                    "confidence": 0.3
                 }
             ]
             
             final_products.extend(fallback_products)
         
-        # Sort by relevance and price availability
-        final_products.sort(key=lambda x: (
-            0 if x.get("source") != "fallback" else 1,  # Real products first
-            0 if x.get("price") and x.get("price") != "See website for price" else 1,  # Products with price first
-            0 if x.get("image") else 1,  # Products with image second
-            -float(x.get("confidence", 0))  # Higher confidence first
-        ))
+        # Apply enhanced ranking logic if enabled
+        if is_enabled("NEW_PRODUCT_RANKER"):
+            # Check for color information from the original caption
+            color_terms = []
+            material_terms = []
+            
+            # Extract color and material terms from captions
+            for cap in captions if isinstance(captions, list) else [captions]:
+                cap_lower = cap.lower()
+                # Extract potential color terms
+                for color in ["black", "white", "gray", "grey", "brown", "blue", "red", 
+                             "green", "yellow", "purple", "pink", "orange", "beige", 
+                             "walnut", "oak", "mahogany", "cherry", "maple", "teak"]:
+                    if color in cap_lower:
+                        if color in ["walnut", "oak", "mahogany", "cherry", "maple", "teak"]:
+                            material_terms.append(color)
+                        else:
+                            color_terms.append(color)
+            
+            # Try to get additional metadata from the object_metadata
+            if object_metadata:
+                class_name = object_metadata.get('class', '')
+                confidence = object_metadata.get('confidence', 0.0)
+                
+                # If the object was detected with high confidence, boost its products
+                if confidence > 0.7:
+                    for product in final_products:
+                        if "confidence" not in product:
+                            product["confidence"] = 0.6 + (confidence - 0.7)
+            
+            try:
+                # If we have color extraction data available, use it
+                if is_enabled("COLOR_EXTRACTOR") and Path(crop_path).exists():
+                    from utils.image_color import get_material_color_keywords
+                    
+                    # Extract color and material information
+                    color_info = get_material_color_keywords(crop_path)
+                    if color_info:
+                        if "color" in color_info:
+                            # Add specific color terms from extraction
+                            color_terms.extend(color_info["color"].split("-"))
+                        
+                        if "material" in color_info and color_info["material"] != "unknown":
+                            material_terms.append(color_info["material"])
+            except Exception as e:
+                print(f"Error extracting color/material for ranking: {e}")
+                
+            print(f"Ranking with color terms: {color_terms} and material terms: {material_terms}")
+                
+            # Sort products based on the new ranking logic
+            final_products.sort(key=lambda x: (
+                # Primary ranking criteria
+                0 if x.get("source") != "fallback" else 1,  # Real products first
+                
+                # Secondary criteria - confidence score (higher is better)
+                -float(x.get("confidence", 0.5)),  # Default 0.5 if not set
+                
+                # Check if product has price (prefer products with specific prices)
+                0 if x.get("price") and x.get("price") != "See website for price" 
+                  and x.get("price") != "Various prices" else 1,
+                
+                # Check color match in title or description
+                not any(term in x.get("title", "").lower() for term in color_terms) 
+                  and not any(term in x.get("description", "").lower() for term in color_terms),
+                
+                # Check material match in title or description  
+                not any(term in x.get("title", "").lower() for term in material_terms)
+                  and not any(term in x.get("description", "").lower() for term in material_terms),
+                
+                # Final ranking criteria
+                0 if x.get("image") else 1,  # Products with image before those without
+            ))
+        else:
+            # Original ranking logic
+            final_products.sort(key=lambda x: (
+                0 if x.get("source") != "fallback" else 1,  # Real products first
+                0 if x.get("price") and x.get("price") != "See website for price" else 1,  # Products with price first
+                0 if x.get("image") else 1,  # Products with image second
+                -float(x.get("confidence", 0))  # Higher confidence first
+            ))
         
         # Return top results
         return final_products[:max_results]
@@ -805,7 +1207,8 @@ async def find_products(crop_path: str, obj_class: str = None, max_results: int 
                 "currency": "USD",
                 "retailer": "Amazon",
                 "source": "error_fallback",
-                "valid": True
+                "valid": True,
+                "confidence": 0.1  # Very low confidence for error fallbacks
             }
         ]
 

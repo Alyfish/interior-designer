@@ -48,4 +48,13 @@ FLAGS = {
     "AR_SDK": False,          # AR mode for snap-to-shop
     "DESIGN_SUGGESTIONS": False, # Show design suggestions
     "AFFILIATE_TAGS": False,  # Add affiliate tags to links
+    
+    # New product search features
+    "SERPAPI_REVIMG": True,   # Use SerpAPI for true reverse image search
+    "GPT4O_CAPTIONS": True,   # Use GPT-4o for rich captions
+    "COLOR_EXTRACTOR": True,  # Extract colors from images using k-means
+    "MATERIAL_DETECTOR": True, # Detect materials in images using GPT-4o
+    "SSIM_PRODUCT_VALIDATION": True, # Use SSIM to validate product matches
+    "NEW_PRODUCT_RANKER": True, # Use improved ranking algorithm
+    "PARALLEL_CAPTION_SEARCH": True, # Search with multiple captions in parallel
 } 
