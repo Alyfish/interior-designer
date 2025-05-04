@@ -1,0 +1,74 @@
+{
+  "retailers": {
+    "ikea.com": {
+      "name": "IKEA",
+      "pattern": "ikea\\.com/us/en/p/[a-z0-9-]+-[a-z0-9]+/?$",
+      "price_selector": ".pip-temp-price__integer",
+      "in_stock_indicator": "In stock",
+      "affiliate_template": "https://www.anrdoezrs.net/links/100085124/type/dlg/{url}"
+    },
+    "wayfair.com": {
+      "name": "Wayfair",
+      "pattern": "wayfair\\.com/furniture/pdp/[a-z0-9-]+-[a-z0-9]+\\.html$",
+      "price_selector": ".pl-Price",
+      "in_stock_indicator": "In Stock",
+      "affiliate_template": "https://www.anrdoezrs.net/links/100085124/type/dlg/{url}"
+    },
+    "target.com": {
+      "name": "Target",
+      "pattern": "target\\.com/p/[a-z0-9-]+/-/A-\\d+$",
+      "price_selector": "[data-test='product-price']",
+      "in_stock_indicator": "Shipping",
+      "affiliate_template": "https://goto.target.com/c/100085124/81938/2092?u={url}"
+    },
+    "amazon.com": {
+      "name": "Amazon",
+      "pattern": "amazon\\.com/[^/]+/dp/[A-Z0-9]{10}/?$",
+      "price_selector": ".a-price .a-offscreen",
+      "in_stock_indicator": "In Stock",
+      "affiliate_template": "https://www.amazon.com/dp/{asin}/ref=nosim?tag=interior-designer-20"
+    },
+    "walmart.com": {
+      "name": "Walmart",
+      "pattern": "walmart\\.com/ip/[a-z0-9-]+/\\d+$",
+      "price_selector": "[itemprop='price']",
+      "in_stock_indicator": "Available",
+      "affiliate_template": "https://goto.walmart.com/c/100085124/565706/9383?u={url}"
+    },
+    "article.com": {
+      "name": "Article",
+      "pattern": "article\\.com/products/[a-z0-9-]+$",
+      "price_selector": ".product__price--reg",
+      "in_stock_indicator": "In stock",
+      "affiliate_template": "{url}"
+    },
+    "westelm.com": {
+      "name": "West Elm",
+      "pattern": "westelm\\.com/products/[a-z0-9-]+/$",
+      "price_selector": ".product-price",
+      "in_stock_indicator": "In Stock",
+      "affiliate_template": "{url}"
+    },
+    "cb2.com": {
+      "name": "CB2",
+      "pattern": "cb2\\.com/[a-z0-9-]+-[a-z0-9-]+/[a-z0-9]+$",
+      "price_selector": ".product-price",
+      "in_stock_indicator": "In Stock", 
+      "affiliate_template": "{url}"
+    },
+    "crateandbarrel.com": {
+      "name": "Crate & Barrel",
+      "pattern": "crateandbarrel\\.com/[a-z0-9-]+-[a-z0-9-]+/[a-z0-9]+$",
+      "price_selector": ".product-price",
+      "in_stock_indicator": "In Stock",
+      "affiliate_template": "{url}"
+    },
+    "potterybarn.com": {
+      "name": "Pottery Barn",
+      "pattern": "potterybarn\\.com/products/[a-z0-9-]+/$",
+      "price_selector": ".product-price",
+      "in_stock_indicator": "In Stock",
+      "affiliate_template": "{url}"
+    }
+  }
+} 

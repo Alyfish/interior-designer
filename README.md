@@ -10,6 +10,60 @@ An advanced interior design application that combines object detection with furn
 - **Furniture Analysis**: Uses AI to find real, available products matching your furniture
 - **Product Links**: Get direct links to retailers like IKEA, Wayfair, Target, Amazon, and Walmart
 
+## New Features & Optimizations
+
+The application includes the following optimizations and enhancements that can be enabled via feature flags:
+
+### Available Feature Flags
+
+Set these in your `.env` file to enable optional features:
+
+- `FINETUNE_MODEL=on` - Use a fine-tuned YOLOv8 segmentation model (requires the model file in `/models`)
+- `VECTOR_SEARCH=on` - Enable vector database similarity search
+- `LLM_RERANK=on` - Use LLM to rerank product search results
+- `EMBEDDINGS=on` - Generate CLIP/DINO embeddings for furniture crops
+- `EXT_CACHE=on` - Enable Redis and S3 caching for better performance
+- `METRICS=on` - Enable Prometheus metrics collection
+- `HEADLESS_VERIFY=on` - Verify product links using headless browser
+- `PROGRESSIVE_CARDS=on` - Show progressive loading of results (enabled by default)
+
+### Performance Optimizations
+
+The application includes several performance optimizations:
+
+1. **Tiered Caching System**
+   - In-memory LRU cache for fast access
+   - Optional Redis cache for persistence across restarts
+   - Optional S3 storage for binary data
+
+2. **Concurrency Control**
+   - Throttling to limit API calls per service
+   - Rate limiting to avoid overloading external services
+   - Circuit breaker pattern for resilience
+   - Exponential backoff and retry for transient errors
+
+3. **Monitoring**
+   - Optional Prometheus metrics for monitoring
+   - Performance tracking for API calls and search operations
+   - Latency measurements for system optimization
+
+### UI Enhancements
+
+1. **Progressive Card Loading**
+   - Products appear as they're loaded, rather than waiting for all results
+   - Better user experience for slower searches
+
+2. **Source Filtering**
+   - Filter results by source (Google, Amazon, Bing, etc.)
+   - Focus on preferred retailers
+
+## Configuration
+
+The application uses JSON configuration files for various settings:
+
+- `config/retailers.json` - Supported retailers with verification patterns and selectors
+- `config/semantic_colors.json` - Color coding for different object types
+
 ## Installation
 
 1. Clone the repository
@@ -48,7 +102,7 @@ python -m interior_designer.main --image path/to/image.jpg --api perplexity
 - Create a `.env` file in the project root with the following variables:
   ```ini
   SERP_KEY=your_serpapi_key_here
-  AMAZON_RAPID_KEY=your_amazon_rapidapi_key_here
+  AMAZON_RAPID_KEY=your_amazon_rapidapi_key
   LAOZHANG_API_KEY=your_laozhang_api_key
   PERPLEXITY_API_KEY=your_perplexity_api_key
   # Optional:

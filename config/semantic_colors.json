@@ -1,0 +1,66 @@
+{
+  "furniture": {
+    "chair": "#DAA520",
+    "couch": "#BC8F8F",
+    "sofa": "#D2691E",
+    "bed": "#FA8072",
+    "dining table": "#CD853F",
+    "table": "#8B4513",
+    "desk": "#A0522D",
+    "bookshelf": "#8B4513",
+    "cabinet": "#DEB887",
+    "wardrobe": "#A0522D",
+    "dresser": "#A0522D",
+    "nightstand": "#DEB887",
+    "ottoman": "#BC8F8F",
+    "bench": "#CD853F",
+    "armchair": "#DAA520"
+  },
+  "room_elements": {
+    "wall": "#8B4513",
+    "floor": "#DEB887",
+    "ceiling": "#F5F5F5",
+    "window": "#87CEEB",
+    "door": "#A0522D",
+    "carpet": "#8A2BE2",
+    "rug": "#6B8E23"
+  },
+  "electronics": {
+    "tv": "#1E90FF",
+    "monitor": "#4169E1",
+    "computer": "#4682B4",
+    "laptop": "#4682B4",
+    "speaker": "#2F4F4F"
+  },
+  "decor": {
+    "potted plant": "#228B22",
+    "vase": "#BA55D3",
+    "lamp": "#FFD700",
+    "artwork": "#BC8F8F",
+    "picture": "#BC8F8F",
+    "painting": "#BC8F8F",
+    "mirror": "#B0C4DE",
+    "pillow": "#FFC0CB",
+    "cushion": "#FFC0CB",
+    "throw": "#FFA07A",
+    "book": "#F0FFF0"
+  },
+  "bathroom": {
+    "toilet": "#B0E0E6",
+    "sink": "#B0E0E6",
+    "bathtub": "#B0E0E6",
+    "shower": "#B0E0E6"
+  },
+  "kitchen": {
+    "refrigerator": "#F5F5F5",
+    "stove": "#708090",
+    "oven": "#708090",
+    "microwave": "#708090",
+    "dishwasher": "#F5F5F5",
+    "counter": "#F5DEB3",
+    "cabinet": "#DEB887"
+  },
+  "custom": {
+    "custom": "#FF1493"
+  }
+} 

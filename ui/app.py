@@ -431,21 +431,72 @@ def main():
 
             # Display products if available
             if st.session_state.show_products and st.session_state.all_products:
-                st.subheader("Product Matches")
-                st.write("Found and tagged per object using metadata for captions and searches")
+                st.header("Found matching products:")
                 
-                # Display products grouped by object
-                for key, info in st.session_state.all_products.items():
-                    meta = info['metadata']
-                    products = info['products']
-                    with st.expander(f"{meta['class'].title()} (ID: {meta['id']})", expanded=True):
-                        st.markdown(f"**Confidence:** {meta['confidence']:.2f}")
+                # Add source filtering
+                available_sources = set()
+                for obj_key, data in st.session_state.all_products.items():
+                    for product in data.get('products', []):
+                        if 'source' in product:
+                            available_sources.add(product['source'])
+                
+                # Default to all sources selected
+                if 'selected_sources' not in st.session_state:
+                    st.session_state.selected_sources = list(available_sources)
+                
+                # Source filter UI
+                source_options = sorted(list(available_sources))
+                if source_options:
+                    st.session_state.selected_sources = st.multiselect(
+                        "Filter by source:", 
+                        source_options,
+                        default=st.session_state.selected_sources
+                    )
+                
+                # Display results by object
+                for obj_key, data in st.session_state.all_products.items():
+                    metadata = data.get('metadata', {})
+                    products = data.get('products', [])
+                    
+                    if products:
+                        # Filter products by selected sources
+                        filtered_products = [p for p in products if p.get('source') in st.session_state.selected_sources]
                         
-                        for prod in products:
-                            st.markdown(f"- **{prod['title']}** | {prod['retailer']} | {prod['price']} {prod['currency']}  ")
-                            st.markdown(f"  [View]({prod['url']})")
-                        if not products:
-                            st.info("No product matches found for this object.")
+                        if filtered_products:
+                            st.subheader(f"{metadata.get('class', 'Object').title()} {metadata.get('id', '')}")
+                            
+                            # Create columns for product cards
+                            cols = st.columns(3)
+                            
+                            # Display products in columns
+                            for i, product in enumerate(filtered_products):
+                                with cols[i % 3]:
+                                    # Create an empty container for progressive loading
+                                    card_container = st.empty()
+                                    
+                                    # Build card content
+                                    title = product.get('title', 'Product')
+                                    price = product.get('price', 'Price unavailable')
+                                    image_url = product.get('image', '')
+                                    retailer = product.get('retailer', product.get('source', 'Retailer'))
+                                    product_url = product.get('url', '#')
+                                    
+                                    card_html = f"""
+                                    <div style="border:1px solid #ddd; border-radius:5px; padding:10px; margin-bottom:10px; height:100%;">
+                                        <h3 style="font-size:16px; height:50px; overflow:hidden;">{title}</h3>
+                                        {'<img src="' + image_url + '" style="max-width:100%; max-height:150px; display:block; margin:auto;">' if image_url else ''}
+                                        <p style="font-weight:bold; margin-top:10px;">{price}</p>
+                                        <p style="color:#666; font-size:12px;">From: {retailer}</p>
+                                        <a href="{product_url}" target="_blank" style="display:block; text-align:center; background-color:#4CAF50; color:white; padding:8px; border-radius:4px; text-decoration:none; margin-top:10px;">View Product</a>
+                                    </div>
+                                    """
+                                    
+                                    # Update the container with the card content
+                                    card_container.markdown(card_html, unsafe_allow_html=True)
+                        else:
+                            st.info(f"No products found for {metadata.get('class', 'object')} with selected filters.")
+                    else:
+                        st.warning(f"No products found for {metadata.get('class', 'object')}.")
     
     else:
         # Display demo information
