@@ -1,10 +1,10 @@
-# 🏡 AI Interior Designer
+# 🏡 AI Interior Designer - Final Object Detection Version
 
 An advanced AI-powered interior design application that detects furniture in room images and finds matching products through a beautiful interactive interface.
 
 ## ✨ Features
 
-- **🔍 Intelligent Object Detection**: Multiple backends - YOLOv8-Seg and Mask2Former
+- **🔍 Intelligent Object Detection**: Uses YOLOv8-Seg for precise furniture detection
 - **🎨 Interactive Modal Carousel**: Click detected objects to view product recommendations
 - **🔄 Hybrid Product Search**: Combines text and visual similarity search
 - **💡 Advanced Vision Analysis**: CLIP embeddings and GPT-4V captions
@@ -19,60 +19,46 @@ An advanced AI-powered interior design application that detects furniture in roo
 - pip package manager
 - Internet connection for API services
 
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/Alyfish/interior-designer.git
-cd interior-designer
-```
-
-### 2. Install Dependencies
+### 1. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Set Up API Keys
+### 2. Set Up API Keys
 
-Create a `.env` file in the project root directory:
+Copy the template file and fill in your API keys:
 
 ```bash
-# Copy the template
-python setup_env.py
+cp .env.template .env
 ```
 
 Then edit the `.env` file with your actual API keys:
 
-```env
+```
 OPENAI_API_KEY=your_actual_openai_api_key_here
 SERP_API_KEY=your_actual_serpapi_key_here
 IMGBB_API_KEY=your_actual_imgbb_api_key_here
-REPLICATE_API_TOKEN=your_replicate_api_token_here
+REPLICATE_API_TOKEN=your_actual_replicate_api_token_here
 REVERSE_IMAGE_SEARCH=on
 ```
 
 #### Get Your API Keys:
 
 - **OpenAI API**: https://platform.openai.com/api-keys
-- **SerpAPI**: https://serpapi.com/manage-api-key  
+- **SerpAPI**: https://serpapi.com/manage-api-key
 - **ImgBB**: https://api.imgbb.com/
 - **Replicate**: https://replicate.com/account/api-tokens
 
-### 4. Download the YOLOv8 Model
-
-The YOLOv8 model will be downloaded automatically on first run, or you can download it manually:
+### 3. Run the Application
 
 ```bash
-# The app will download yolov8x-seg.pt automatically to the project directory
-```
-
-### 5. Run the Application
-
-```bash
-streamlit run new_streamlit_app.py
+python3 -m streamlit run new_streamlit_app.py
 ```
 
 The application will be available at: http://localhost:8501
+
+**Note**: The YOLOv8 model (yolov8x-seg.pt) will be downloaded automatically on first run (~137MB).
 
 ## 🎯 How to Use
 
@@ -90,48 +76,16 @@ The application will be available at: http://localhost:8501
 - **Product Details**: View prices, ratings, and store information
 - **Direct Shopping**: Click product links to visit retailer websites
 
-## 🛠️ Configuration
-
-### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | For GPT-4V image analysis |
-| `SERP_API_KEY` | Yes | For Google Shopping search |
-| `REPLICATE_API_TOKEN` | For Mask2Former | For Mask2Former segmentation backend |
-| `IMGBB_API_KEY` | Optional | For reverse image search |
-| `REVERSE_IMAGE_SEARCH` | Optional | Enable visual search (`on`/`off`) |
-
-### Search Configuration
-
-Edit `config.py` to customize:
-
-- API endpoints
-- Search parameters  
-- Model configurations
-- Feature flags
-
-### Segmentation Backends
-
-| Backend | Description | Speed | Accuracy | Requirements |
-|---------|-------------|-------|----------|------------|
-| **YOLOv8** | Fast general object detection | Fast ⚡ | Good | Local model |
-| **Mask2Former** | Advanced segmentation (ADE-20K) | Moderate | Excellent | Replicate API |
-
-Choose your backend in the UI dropdown. Mask2Former provides better segmentation for interior scenes but requires an API key.
-
 ## 📁 Project Structure
 
 ```
-interior-designer/
+finalobjectdetection/
 ├── 📄 new_streamlit_app.py      # Main Streamlit application
-├── 🔍 new_object_detector.py    # Multi-backend object detection
-├── 🎭 mask2former_detector.py   # Mask2Former Replicate API
+├── 🔍 new_object_detector.py    # YOLOv8 object detection
 ├── 🛍️ new_product_matcher.py    # Product search & matching
 ├── 👁️ vision_features.py        # CLIP & BLIP vision analysis
 ├── ⚙️ config.py                # Configuration management
 ├── 📋 requirements.txt         # Python dependencies
-├── 🌐 setup_env.py             # Environment setup helper
 ├── 📁 utils/                   # Utility modules
 │   ├── filters.py              # Product filtering
 │   ├── cache.py               # Caching system
@@ -139,34 +93,15 @@ interior-designer/
 │   ├── object_detection.py    # Detection utilities
 │   ├── product_search.py      # Search utilities
 │   └── image_analysis.py      # Image analysis utilities
-├── 📁 input/                  # Sample input images
-├── 📁 output/                 # Generated output files
-└── 📁 tests/                  # Test files
+└── 🎯 yolov8x-seg.pt          # YOLOv8 model (downloaded automatically)
 ```
 
 ## 🧪 Testing
 
-### Run Tests
-
-```bash
-# Full integration test
-python test_full_integration.py
-
-# Individual component tests
-python test_enhanced_features.py
-python test_streamlit_integration.py
-python test_imgbb_integration.py
-```
-
-### Test Your Setup
-
-```bash
-# Test API connections
-python direct_serpapi_test.py
-
-# Test product matching
-python test_product_matching.py
-```
+The application has been tested and verified to work with:
+- Streamlit 1.46.1
+- Python 3.8+
+- All required dependencies from requirements.txt
 
 ## 🔧 Troubleshooting
 
@@ -188,15 +123,8 @@ pip install -r requirements.txt
 
 **Streamlit won't start**:
 ```bash
-# Try specifying the full path
-streamlit run /full/path/to/new_streamlit_app.py
+python3 -m streamlit run new_streamlit_app.py
 ```
-
-### Performance Tips
-
-- **GPU Acceleration**: Install CUDA-compatible PyTorch for faster inference
-- **Memory**: Close other applications if experiencing memory issues
-- **Network**: Stable internet connection required for API calls
 
 ## 🎨 Customization
 
@@ -224,47 +152,22 @@ SEARCH_PARAMS = {
 }
 ```
 
-### UI Customization
-
-Modify the CSS in `new_streamlit_app.py`:
-
-```python
-st.markdown("""
-<style>
-    /* Add your custom CSS here */
-    .main-header {
-        background: your-custom-gradient;
-    }
-</style>
-""", unsafe_allow_html=True)
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
 ## 📄 License
 
-This project is licensed under the MIT License. See LICENSE file for details.
+This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
 - **YOLOv8**: Ultralytics for object detection
-- **OpenAI**: GPT-4V for image analysis  
+- **OpenAI**: GPT-4V for image analysis
 - **SerpAPI**: Google Shopping integration
 - **Streamlit**: Web application framework
 - **Open-CLIP**: Visual similarity search
 
-## 📞 Support
-
-- 🐛 **Issues**: https://github.com/Alyfish/interior-designer/issues
-- 💬 **Discussions**: https://github.com/Alyfish/interior-designer/discussions
-- 📧 **Email**: [Your contact email]
-
 ---
 
-Made with ❤️ for interior design enthusiasts 
+Made with ❤️ for interior design enthusiasts
+
+## Version Information
+
+This is the **Final Object Detection Version** - a stable, tested, and production-ready implementation of the AI Interior Designer application. 
