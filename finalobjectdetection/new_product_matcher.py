@@ -66,7 +66,8 @@ logging.basicConfig(level=logging.INFO)
 check_api_keys()
 
 # --- Feature Flags --- #
-ENABLE_REVERSE_IMAGE_SEARCH = os.getenv("REVERSE_IMAGE_SEARCH", "off").lower() in ["on", "true", "1", "yes"]
+# Enable reverse image search by default when API keys are available
+ENABLE_REVERSE_IMAGE_SEARCH = os.getenv("REVERSE_IMAGE_SEARCH", "on").lower() in ["on", "true", "1", "yes"]
 
 # --- Constants --- #
 # Updated to reflect a more general product search capability
@@ -115,10 +116,12 @@ def search_products_serpapi_tool(query: str, serp_api_key: str) -> str:
     Use SerpAPI to search for products on Google Shopping.
     Returns formatted product results with real URLs.
     """
+    print(f"🛒 SerpAPI: Starting product search for query: '{query}'")
     logger.info(f"ProductSearchTool: Searching with query: '{query}'")
     
     # If no API key is provided, return mock results for testing
     if not serp_api_key or serp_api_key == "your_serpapi_key_here":
+        print("⚠️ No valid SERP API key - using mock results")
         logger.warning("No valid SERP API key provided. Returning mock results.")
         return generate_mock_products(query)
     
@@ -141,6 +144,7 @@ def search_products_serpapi_tool(query: str, serp_api_key: str) -> str:
                     logger.error("Could not import GoogleSearch from any known package")
                     return generate_mock_products(query)
 
+        print("🌐 Making API call to SerpAPI...")
         search = GoogleSearch({
             "engine": "google_shopping",
             "q": query,
@@ -149,20 +153,24 @@ def search_products_serpapi_tool(query: str, serp_api_key: str) -> str:
         })
         results = search.get_dict()
         
+        print(f"✅ SerpAPI response received with keys: {list(results.keys())}")
         logger.info(f"SerpAPI returned: {results.keys()}")
         
         # If the response contains an explicit error from SerpAPI, surface it for easier debugging
         if "error" in results:
             err_msg = results.get("error", "Unknown SerpAPI error")
+            print(f"❌ SerpAPI ERROR: {err_msg}")
             logger.error(f"SerpAPI ERROR (Text Search): {err_msg}")
             return f"SerpAPI error (Text Search): {err_msg}"
         
         if "shopping_results" not in results:
+            print(f"⚠️ No shopping_results found. Available keys: {list(results.keys())}")
             logger.warning(f"No shopping_results in response. Available keys: {list(results.keys())}")
             return f"No shopping results found for '{query}'"
         
         products = []
         shopping_results = results["shopping_results"]
+        print(f"🎯 Processing {len(shopping_results)} shopping results")
         logger.info(f"Found {len(shopping_results)} shopping results")
         
         for i, item in enumerate(shopping_results[:5], 1):

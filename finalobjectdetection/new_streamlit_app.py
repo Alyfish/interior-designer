@@ -111,7 +111,7 @@ import cv2
 
 # Local imports - Fixed import path
 from vision_features import generate_blip_caption, extract_clip_embedding, get_caption_json, get_caption_json_gpt4v, merge_captions, polish_caption_with_openai
-from new_object_detector import ObjectDetector
+from new_object_detector import ObjectDetector, SegBackend
 from new_product_matcher import (
     create_new_product_search_agent, 
     parse_agent_response_to_products, 
@@ -283,12 +283,19 @@ init_session_state()
 
 # --- Helper Functions ---
 @st.cache_resource
-def get_object_detector():
-    """Simple singleton for the detector"""
-    # Correctly instantiate and return ObjectDetector
+def get_object_detector(backend_key: str):
+    """Simple singleton for the detector, now backend-aware."""
     try:
-        detector = ObjectDetector() 
-        logger.info("✅ Object detector initialized successfully")
+        # Map string choice to Enum
+        backend_map = {
+            "YOLOV8": SegBackend.YOLOV8,
+            "MASK2FORMER": SegBackend.MASK2FORMER,
+            "COMBINED": SegBackend.COMBINED,
+        }
+        selected_backend = backend_map.get(backend_key, SegBackend.COMBINED)
+        
+        detector = ObjectDetector(backend=selected_backend)
+        logger.info(f"✅ Object detector initialized successfully with {selected_backend.name} backend")
         return detector
     except Exception as e:
         st.error(f"Failed to initialize Object Detector: {e}")
@@ -1110,17 +1117,22 @@ def auto_select_furniture_objects():
         if obj.get("class", "").lower() in furniture_items
     ]
 
-def crop_and_save_selected_objects():
+def crop_and_save_selected_objects(auto_search=False):
     """Crops selected objects from the original image and saves them with vision features."""
+    print(f"🔧 crop_and_save_selected_objects called with auto_search={auto_search}")
+    print(f"📊 Image available: {st.session_state.image is not None}, Selected objects: {len(st.session_state.selected_objects) if st.session_state.selected_objects else 0}")
+    
     if st.session_state.image is None or not st.session_state.selected_objects:
         # Don't assign the result of st.warning to anything - this prevents DeltaGenerator issues
+        print("⚠️ No image or no selected objects - aborting crop")
         st.warning("Please upload an image and select objects first.")
         st.session_state.processed_crop_details = []
-        return
+        return []
 
     cropped_object_details = []
     output_dir = os.path.join("output", "crops")
     os.makedirs(output_dir, exist_ok=True)
+    print(f"📁 Output directory: {output_dir}")
 
     original_image_cv = st.session_state.image # This is already a CV2 image (numpy array)
     # Get room style caption once for the entire image
@@ -1133,7 +1145,16 @@ def crop_and_save_selected_objects():
     else:
         logger.warning("Original image is None, cannot generate room style caption.")
 
+    # Add progress tracking
+    progress_text = st.empty()
+    progress_bar = st.progress(0)
+    
     for obj_index, obj_data in enumerate(st.session_state.selected_objects):
+        # Update progress
+        progress = (obj_index + 1) / len(st.session_state.selected_objects)
+        progress_bar.progress(progress)
+        progress_text.text(f"Processing object {obj_index + 1} of {len(st.session_state.selected_objects)}...")
+        
         bbox = obj_data.get("bbox")
         
         if bbox:
@@ -1162,28 +1183,28 @@ def crop_and_save_selected_objects():
                 # Generate and store new designer caption JSON
                 final_caption_json = {"style": "N/A", "material": "N/A", "colour": "N/A", "era": "N/A", "caption": "Caption generation failed"}
                 try:
+                    print(f"🎨 Generating caption for object {obj_index}: {class_name}")
                     logger.info(f"Generating designer caption for crop: {crop_path}")
                     # Pass the cropped image (NumPy array) directly to get_caption_json
                     designer_caption_json = get_caption_json(cropped_img_cv, designer=True)
+                    print(f"✅ Caption generated: {designer_caption_json.get('caption', 'N/A')[:50]}...")
                     logger.info(f"Raw crop JSON for {crop_path}: {designer_caption_json}")
                     
                     # The 'blip_caption' field will now store the most important text part of the JSON for display
                     st.session_state.selected_objects[obj_index]["blip_caption"] = designer_caption_json.get('caption', 'No caption generated.')
-
-                    # No longer merging with room style
-                    # merged_json = merge_captions(designer_caption_json, st.session_state.get("room_style_caption", ""))
-                    # st.session_state.selected_objects[obj_index]["merged_caption_json"] = merged_json
-
-                    # Optional: Polish the final caption if needed (can be enabled later)
-                    # if merged_json.get('caption'):
+                    st.session_state.selected_objects[obj_index]["caption_data"] = designer_caption_json
+                    st.session_state.selected_objects[obj_index]["designer_caption_json"] = designer_caption_json
 
                     # CLIP embedding (existing logic)
                     try:
+                        print(f"🔧 Extracting CLIP embedding for {class_name}...")
                         embedding = extract_clip_embedding(crop_path)
                         # Convert embedding to list for JSON serializability if needed by Streamlit's state
                         st.session_state.selected_objects[obj_index]["clip_embedding"] = embedding.tolist() if isinstance(embedding, np.ndarray) else embedding
+                        print(f"✅ CLIP embedding extracted successfully")
                         logger.info(f"✅ Extracted CLIP embedding for {crop_path}")
                     except Exception as e:
+                        print(f"❌ CLIP embedding failed: {e}")
                         logger.error(f"❌ Failed to extract CLIP embedding for {crop_path}: {e}")
                         st.session_state.selected_objects[obj_index]["clip_embedding"] = None
                     
@@ -1206,6 +1227,10 @@ def crop_and_save_selected_objects():
                 logger.error(f"❌ Failed to save or process crop {crop_path}: {e}")
         else:
             logger.warning(f"Skipping object {obj_data.get('id', obj_index)} due to missing bounding box.")
+    
+    # Clear progress indicators
+    progress_bar.empty()
+    progress_text.empty()
 
     # Display UI elements but don't assign their return values
     if cropped_object_details:
@@ -1234,8 +1259,13 @@ def crop_and_save_selected_objects():
     logger.info(f"crop_and_save_selected_objects explicitly storing {len(cropped_object_details)} items in session_state.")
     # Store results in session state to avoid DeltaGenerator issues
     st.session_state.processed_crop_details = cropped_object_details
-    # Return nothing to avoid any DeltaGenerator issues
-    return
+    
+    # If auto_search is enabled, automatically trigger product search
+    if auto_search and cropped_object_details:
+        return cropped_object_details
+    
+    # Return the processed objects for potential use
+    return cropped_object_details
 
 def display_products(products_by_object, selected_object_details):
     """Displays product search results in cards, organized by selected object."""
@@ -1252,6 +1282,20 @@ def main_app():
 
     st.sidebar.title("Settings")
     
+    # Backend selection
+    st.sidebar.subheader("⚙️ Detection Backend")
+    backend_choice = st.sidebar.selectbox(
+        "Choose a detection model:",
+        ("COMBINED", "MASK2FORMER", "YOLOV8"),
+        index=0, # Default to COMBINED
+        help=(
+            "**COMBINED**: Best quality. Uses YOLOv8 for speed and Mask2Former for detail. "
+            "**MASK2FORMER**: High-quality semantic segmentation (requires API key). "
+            "**YOLOV8**: Fast, local detection."
+        )
+    )
+    st.session_state.backend = backend_choice
+
     # Detection Settings
     st.sidebar.subheader("🔍 Detection Settings")
     
@@ -1337,8 +1381,8 @@ def main_app():
                 if st.button("❌ Cancel", key="cancel_btn", use_container_width=True, type="secondary"):
                     try:
                         # Try to cancel SAM detection if running
-                        detector_instance = get_object_detector()
-                        if detector_instance and hasattr(detector_instance, 'sam_detector'):
+                        detector_instance = get_object_detector(st.session_state.get("backend", "COMBINED"))
+                        if detector_instance and hasattr(detector_instance, 'sam_detector') and detector_instance.sam_detector:
                             detector_instance.sam_detector._cancel_global_prediction()
                         st.session_state.detection_in_progress = False
                         st.success("Detection cancelled!")
@@ -1352,19 +1396,33 @@ def main_app():
         
         if detect_clicked:
             st.session_state.detection_in_progress = True
+            print("\n" + "="*60)
+            print("🚀 STARTING OBJECT DETECTION")
+            print(f"📁 Backend: {st.session_state.get('backend', 'COMBINED')}")
+            print(f"📸 Image: {uploaded_file.name}")
+            print("="*60)
             
             with st.spinner("🤖 Processing image for object detection..."):
                 try:
                     # Save uploaded file temporarily
                     temp_img_path = "temp_uploaded_image.jpg"
+                    print(f"💾 Saving uploaded image to: {temp_img_path}")
                     with open(temp_img_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
+                    print("✅ Image saved successfully")
                     
-                    detector_instance = get_object_detector()
+                    print("🔧 Initializing object detector...")
+                    detector_instance = get_object_detector(st.session_state.get("backend", "COMBINED"))
                     if detector_instance:
+                        print("✅ Detector initialized, starting detection...")
                         original_image_cv, detected_objects, segmented_image_path = detector_instance.detect_objects(temp_img_path)
                         
                         if detected_objects:
+                            print(f"🎯 DETECTION COMPLETE! Found {len(detected_objects)} objects")
+                            print("📝 Objects detected:")
+                            for i, obj in enumerate(detected_objects):
+                                print(f"   {i+1}. {obj.get('class', 'unknown')} (confidence: {obj.get('confidence', 0):.2f}, source: {obj.get('source', 'unknown')})")
+                            
                             # Store results
                             st.session_state.image = original_image_cv
                             st.session_state.objects = detected_objects
@@ -1375,16 +1433,22 @@ def main_app():
                             # Force clear any cached components to ensure refresh
                             st.session_state.interactive_html = None
                             
+                            print("✅ Results stored in session state")
+                            print("🔄 Refreshing UI...")
                             logger.info(f"✅ Detection complete. Stored image with shape {original_image_cv.shape} in session.")
                             st.rerun() # Force a rerun to update the UI immediately
                             
                         else:
+                            print("❌ No objects detected in image")
                             st.error("❌ Failed to process image - no objects detected")
                             
                 except Exception as e:
+                    print(f"❌ ERROR during detection: {str(e)}")
                     logger.error(f"❌ Error during object detection: {e}", exc_info=True)
                     st.error(f"❌ Error processing image: {str(e)}")
                 finally:
+                    print("🏁 Detection process finished")
+                    print("="*60 + "\n")
                     st.session_state.detection_in_progress = False
         
         # Display interactive selection UI if processed
@@ -1422,11 +1486,157 @@ def display_interactive_ui(st_instance):
     )
     
     # Handle selection data
+    print(f"🔍 Component returned data: {type(selected_data)}")
+    print(f"📊 Raw selected_data: {selected_data}")
+    
+    # For debugging, let's auto-select some furniture items if no selection is made
+    if not st.session_state.selected_objects:
+        print("🔧 Auto-selecting furniture items...")
+        # Expanded list of furniture and relevant items
+        furniture_items = ["chair", "sofa", "couch", "table", "tv", "bed", "cabinet", "lamp", 
+                          "refrigerator", "vase", "bowl", "potted plant", "book", "mirror", 
+                          "rug", "cushion", "coffee", "flower", "television", "bottle", 
+                          "pot", "blanket", "tray", "plate"]
+        
+        # Items to exclude from auto-selection
+        exclude_items = ["wall", "floor", "ceiling", "door", "signboard", "box"]
+        
+        auto_selected = []
+        for obj in st.session_state.objects:
+            obj_class = obj.get("class", "").lower()
+            # Include if in furniture list OR (not in exclude list AND confidence > 0.5)
+            if (obj_class in furniture_items or 
+                (obj_class not in exclude_items and obj.get("confidence", 0) > 0.5)):
+                auto_selected.append(obj)
+        
+        if auto_selected:
+            st.session_state.selected_objects = auto_selected
+            print(f"✅ Auto-selected {len(auto_selected)} items")
+            st.info(f"🔧 Auto-selected {len(auto_selected)} items for product search")
+    
     if selected_data and isinstance(selected_data, dict):
-        st.session_state.selected_objects = selected_data.get('selectedObjects', [])
-        st.session_state.include_walls = selected_data.get('includeWalls', False)
+        selected_objects = selected_data.get('selectedObjects', [])
+        if selected_objects:
+            st.session_state.selected_objects = selected_objects
+            st.session_state.include_walls = selected_data.get('includeWalls', False)
+            print(f"✅ Updated selected objects: {len(selected_objects)} items")
+    else:
+        print("⚠️ No selection data received from component")
 
-    # ... The rest of the UI logic ...
+    # Display selected objects and product search integration
+    print(f"📊 UI State - Selected objects: {len(st.session_state.selected_objects) if st.session_state.selected_objects else 0}")
+    
+    if st.session_state.selected_objects:
+        st.info(f"✅ {len(st.session_state.selected_objects)} objects selected")
+        print("✅ Showing Find Products button...")
+        
+        # Single button to process and search products
+        if st.button("🔍 Find Matching Products", key="find_products_btn", type="primary", use_container_width=True):
+            print("\n" + "="*60)
+            print("🛒 STARTING PRODUCT SEARCH")
+            print(f"📦 Selected objects: {len(st.session_state.selected_objects)}")
+            print("="*60)
+            
+            with st.spinner("Processing objects and searching for products..."):
+                # Step 1: Process objects (crop and extract features)
+                print("🔧 Step 1: Processing objects (cropping & feature extraction)...")
+                print(f"📊 Selected objects breakdown:")
+                object_classes = {}
+                for obj in st.session_state.selected_objects:
+                    cls = obj.get('class', 'unknown')
+                    object_classes[cls] = object_classes.get(cls, 0) + 1
+                for cls, count in sorted(object_classes.items()):
+                    print(f"   - {cls}: {count}")
+                
+                processed_objects = crop_and_save_selected_objects(auto_search=True)
+                
+                if processed_objects:
+                    print(f"✅ Processed {len(processed_objects)} objects successfully")
+                    
+                    # Step 2: Search for products using the full power of new_product_matcher
+                    print("🔧 Step 2: Initializing product search...")
+                    from new_product_matcher import search_products_with_visual_similarity, ENABLE_REVERSE_IMAGE_SEARCH
+                    
+                    # Determine search method based on reverse image search availability
+                    if ENABLE_REVERSE_IMAGE_SEARCH and any(obj.get('crop_path') for obj in st.session_state.selected_objects):
+                        search_method = 'hybrid'
+                        print("🔍 Using HYBRID search (visual + text)")
+                        st.info("🔍 Using hybrid search (visual + text) for better results!")
+                    else:
+                        search_method = 'text_only'
+                        print("📝 Using TEXT-ONLY search")
+                        if not ENABLE_REVERSE_IMAGE_SEARCH:
+                            st.warning("💡 Enable reverse image search in .env for better results!")
+                    
+                    # Use enhanced search pipeline with new_product_matcher integration
+                    print("🔧 Step 3: Running enhanced search pipeline...")
+                    from utils.enhanced_product_search import create_enhanced_search_pipeline
+                    search_results = create_enhanced_search_pipeline(
+                        st.session_state.selected_objects,
+                        search_method=search_method,
+                        use_caching=True
+                    )
+                    
+                    print(f"🎯 PRODUCT SEARCH COMPLETE! Found results for {len(search_results)} objects")
+                    print("📊 Search results summary:")
+                    # search_results is a list, not a dict
+                    for idx, result in enumerate(search_results):
+                        if isinstance(result, dict) and 'products' in result:
+                            obj_id = result.get('object_id', idx)
+                            products = result.get('products', [])
+                            print(f"   Object {obj_id}: {len(products)} products found")
+                        else:
+                            print(f"   Object {idx}: Unknown result format")
+                    
+                    # Store results
+                    st.session_state.product_search_results = search_results
+                    print("✅ Results stored in session state")
+                    print("🔄 Refreshing UI...")
+                    print("🏁 Product search process finished")
+                    print("="*60 + "\n")
+                    st.success(f"✅ Found products for {len(search_results)} objects!")
+                    st.rerun()  # Refresh to show results
+                else:
+                    print("❌ No objects were processed successfully")
+                    print("🏁 Product search process finished (failed)")
+                    print("="*60 + "\n")
+        
+        # Display results if available
+        if st.session_state.get('product_search_results'):
+            st.markdown("---")
+            st.subheader("🛒 Product Matches")
+            
+            # Import display module
+            from utils.object_product_integration import display_all_objects_with_products
+            
+            # Add search settings in an expander
+            with st.expander("⚙️ Search Settings", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_search_method = st.selectbox(
+                        "Search Method",
+                        ["hybrid", "text_only", "visual_only"],
+                        help="Hybrid combines text and visual search"
+                    )
+                with col2:
+                    if st.button("🔄 Re-search", key="research_btn"):
+                        with st.spinner("Re-searching with new settings..."):
+                            from utils.enhanced_product_search import create_enhanced_search_pipeline
+                            search_results = create_enhanced_search_pipeline(
+                                st.session_state.selected_objects,
+                                search_method=new_search_method,
+                                use_caching=False  # Don't use cache for re-search
+                            )
+                            st.session_state.product_search_results = search_results
+                            st.rerun()
+            
+            # Display all objects with their products
+            display_all_objects_with_products(
+                st.session_state.selected_objects,
+                st.session_state.product_search_results
+            )
+    else:
+        st.info("👆 Select objects from the image above to search for matching products")
 
 if __name__ == "__main__":
     # Fix asyncio event loop issues on Windows

@@ -10,13 +10,8 @@ from pathlib import Path
 from enum import Enum
 from typing import Optional, List, Dict
 
-# Import SAM detector
-try:
-    from backupnew.sam_detector import SAMDetector
-    SAM_AVAILABLE = True
-except ImportError:
-    SAM_AVAILABLE = False
-    logging.warning("SAMDetector not available, will use YOLO/Mask2Former only")
+# SAM detector currently not implemented
+SAM_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +27,7 @@ MODEL_NAME = "yolov8x-seg.pt"
 MODEL_PATH = os.path.join(PROJECT_ROOT, MODEL_NAME)
 
 class ObjectDetector:
-    def __init__(self, model_path: str = MODEL_PATH, backend: SegBackend = SegBackend.YOLOV8):
+    def __init__(self, model_path: str = MODEL_PATH, backend: SegBackend = SegBackend.MASK2FORMER):
         """
         Initialize object detector with specified backend.
         
@@ -54,13 +49,6 @@ class ObjectDetector:
         
         if self.backend == SegBackend.YOLOV8:
             self._load_model()
-            # Also initialize SAM detector if available
-            if SAM_AVAILABLE:
-                try:
-                    self.sam_detector = SAMDetector()
-                    logger.info("✅ SAM detector initialized alongside YOLO")
-                except Exception as e:
-                    logger.warning(f"Failed to initialize SAM detector: {e}")
         elif self.backend == SegBackend.MASK2FORMER:
             self._load_mask2former()
         elif self.backend == SegBackend.COMBINED:
@@ -273,24 +261,46 @@ class ObjectDetector:
                                     with 'class', 'confidence', 'bbox', and 'contours'.
                 - segmented_image_path: Path to the saved image with segmentations.
         """
+        print(f"🔍 ObjectDetector: Starting detection with {self.backend.value} backend")
+        print(f"📁 Processing image: {image_path}")
+        
         if self.backend == SegBackend.MASK2FORMER:
             try:
+                print("🔧 Using Mask2Former API detection...")
                 # Try Mask2Former first with progress callback
-                return self.mask2former_detector.detect_objects(image_path, progress_callback=progress_callback)
-            except Exception as e:
-                logger.warning(f"Mask2Former failed: {e}, falling back to YOLO")
+                result = self.mask2former_detector.detect_objects(image_path, progress_callback=progress_callback)
+                print("✅ Mask2Former detection completed successfully")
+                return result
+            except TimeoutError as e:
+                print(f"⏱️ Mask2Former timed out, falling back to YOLOv8...")
+                logger.warning(f"⏱️ Mask2Former timed out after {str(e).split()[-1]}, falling back to YOLOv8")
                 if progress_callback:
-                    progress_callback("🔄 Falling back to YOLOv8...")
+                    progress_callback("⏱️ Mask2Former timed out, switching to YOLOv8...")
+                # Fall back to YOLO
+                if not self.model:
+                    self._load_model()
+                return self._detect_with_yolo(image_path)
+            except Exception as e:
+                print(f"❌ Mask2Former failed: {e}, falling back to YOLOv8...")
+                logger.warning(f"❌ Mask2Former failed: {e}, falling back to YOLOv8")
+                if progress_callback:
+                    progress_callback("🔄 Mask2Former unavailable, using YOLOv8...")
                 # Fall back to YOLO
                 if not self.model:
                     self._load_model()
                 return self._detect_with_yolo(image_path)
         elif self.backend == SegBackend.COMBINED:
+            print("🔧 Using COMBINED detection (YOLOv8 + Mask2Former)...")
             # Use combined detection
-            return self._detect_with_combined(image_path, progress_callback)
+            result = self._detect_with_combined(image_path, progress_callback)
+            print("✅ Combined detection completed")
+            return result
         else:
+            print("🔧 Using YOLOv8 local detection...")
             # Use YOLO backend
-            return self._detect_with_yolo(image_path)
+            result = self._detect_with_yolo(image_path)
+            print("✅ YOLOv8 detection completed")
+            return result
     
     def _detect_with_yolo(self, image_path: str) -> tuple[np.ndarray, list, str]:
         """
@@ -374,45 +384,6 @@ class ObjectDetector:
         walls_and_floors = self.detect_walls_and_floors(original_image_cv)
         detected_objects.extend(walls_and_floors)
 
-        # Add SAM detection if available and enabled
-        if self.sam_detector and self.sam_detector.enabled:
-            try:
-                logger.info("🎯 Running SAM/Mask2Former detection...")
-                sam_objects = self.sam_detector.detect_objects(image_path)
-                if sam_objects:
-                    logger.info(f"✅ SAM detected {len(sam_objects)} objects")
-                    # Merge SAM results with YOLO results
-                    merged_objects = self._merge_detections(detected_objects, sam_objects)
-                    detected_objects = merged_objects
-                    
-                    # Redraw the annotated image with merged results
-                    annotated_image = original_image_cv.copy()
-                    for obj in detected_objects:
-                        # Different colors based on source
-                        if obj.get('source') == 'mask2former' or obj.get('source') == 'sam':
-                            color = (255, 0, 255)  # Magenta for SAM/Mask2Former
-                        elif obj.get('source') == 'geometric_analysis':
-                            color = (0, 255, 255)  # Yellow for walls/floors
-                        else:
-                            color = (0, 255, 0)  # Green for YOLO
-                        
-                        # Draw contours
-                        if obj.get('contours'):
-                            for contour in obj['contours']:
-                                pts = np.array(contour, dtype=np.int32).reshape((-1, 1, 2))
-                                cv2.drawContours(annotated_image, [pts], -1, color, 2)
-                        
-                        # Draw bounding box
-                        if obj.get('bbox'):
-                            x1, y1, x2, y2 = obj['bbox']
-                            cv2.rectangle(annotated_image, (x1, y1), (x2, y2), color, 2)
-                            
-                            # Put label
-                            label = f"{obj['class']}: {obj.get('confidence', 1.0):.2f}"
-                            cv2.putText(annotated_image, label, (x1, y1 - 10), 
-                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-            except Exception as e:
-                logger.warning(f"SAM detection failed: {e}")
 
         # Save the annotated image
         output_dir = self.output_dir / "segmented_images"
@@ -591,10 +562,10 @@ class ObjectDetector:
                 if progress_callback:
                     progress_callback("🎭 Step 2/2: Running Mask2Former to improve detection...")
                 
-                # Use shorter timeout for combined mode
+                # Use reasonable timeout for combined mode
                 _, m2f_objects, _ = self.mask2former_detector.detect_objects(
                     image_path, 
-                    timeout=60.0,  # Shorter timeout for combined mode
+                    timeout=180.0,  # Increased timeout for better reliability
                     progress_callback=lambda msg: progress_callback(f"   {msg}") if progress_callback else None
                 )
                 mask2former_objects = m2f_objects
@@ -602,10 +573,14 @@ class ObjectDetector:
                 if progress_callback:
                     progress_callback(f"✅ Mask2Former detected {len(mask2former_objects)} objects")
                     
-            except Exception as e:
-                logger.warning(f"Mask2Former failed in combined mode: {e}")
+            except TimeoutError as e:
+                logger.warning(f"⏱️ Mask2Former timed out in combined mode: {e}")
                 if progress_callback:
-                    progress_callback(f"⚠️ Mask2Former failed, using YOLO results only")
+                    progress_callback(f"⏱️ Mask2Former timed out, using YOLO results only")
+            except Exception as e:
+                logger.warning(f"❌ Mask2Former failed in combined mode: {e}")
+                if progress_callback:
+                    progress_callback(f"⚠️ Mask2Former unavailable, using YOLO results only")
             
             # Step 3: Merge results intelligently
             if progress_callback:
