@@ -1,0 +1,333 @@
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8501
+  Network URL: http://10.0.0.104:8501
+
+  For better performance, install the Watchdog module:
+
+  $ xcode-select --install
+  $ pip install watchdog
+            
+/Users/aly/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+WARNING:root:NPM: .env not found at /Users/aly/Desktop/spaces_ai/interior-designer/.env for re-load attempt.
+/Users/aly/Library/Python/3.9/lib/python/site-packages/open_clip/factory.py:388: UserWarning: These pretrained weights were trained with QuickGELU activation but the model config does not have that enabled. Consider using a model config with a "-quickgelu" suffix or enable with a flag.
+  warnings.warn(
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+
+============================================================
+🚀 STARTING OBJECT DETECTION
+📁 Backend: COMBINED
+📸 Image: ChatGPT Image Apr 11, 2025, 10_36_17 PM.png
+============================================================
+💾 Saving uploaded image to: temp_uploaded_image.jpg
+✅ Image saved successfully
+🔧 Initializing object detector...
+✅ Detector initialized, starting detection...
+🔍 ObjectDetector: Starting detection with combined backend
+📁 Processing image: temp_uploaded_image.jpg
+🔧 Using COMBINED detection (YOLOv8 + Mask2Former)...
+🌐 Mask2Former: Starting API detection...
+📁 Loading and preparing image...
+✅ Image converted to base64 format
+🌐 Calling Mask2Former API via Replicate...
+📦 Processing API response...
+🎯 API returned 28 object classes
+🔧 Parsing segmentation masks...
+✅ Combined detection completed
+🎯 DETECTION COMPLETE! Found 45 objects
+📝 Objects detected:
+   1. refrigerator (confidence: 1.00, source: mask2former)
+   2. vase (confidence: 1.00, source: mask2former)
+   3. tv (confidence: 0.94, source: yolov8)
+   4. table (confidence: 1.00, source: mask2former)
+   5. chair (confidence: 1.00, source: mask2former)
+   6. potted plant (confidence: 0.83, source: yolov8)
+   7. chair (confidence: 0.82, source: yolov8)
+   8. vase (confidence: 0.80, source: yolov8)
+   9. bowl (confidence: 0.78, source: yolov8)
+   10. sofa (confidence: 1.00, source: mask2former)
+   11. vase (confidence: 0.75, source: yolov8)
+   12. potted plant (confidence: 0.72, source: yolov8)
+   13. potted plant (confidence: 0.71, source: yolov8)
+   14. bowl (confidence: 0.67, source: yolov8)
+   15. couch (confidence: 0.37, source: yolov8)
+   16. vase (confidence: 0.36, source: yolov8)
+   17. bowl (confidence: 0.27, source: yolov8)
+   18. vase (confidence: 0.26, source: yolov8)
+   19. vase (confidence: 0.26, source: yolov8)
+   20. book (confidence: 1.00, source: mask2former)
+   21. wall (confidence: 0.65, source: geometric_analysis)
+   22. wall (confidence: 0.66, source: geometric_analysis)
+   23. wall (confidence: 0.50, source: geometric_analysis)
+   24. wall (confidence: 0.50, source: geometric_analysis)
+   25. floor (confidence: 0.75, source: geometric_analysis)
+   26. wall (confidence: 1.00, source: mask2former)
+   27. floor (confidence: 1.00, source: mask2former)
+   28. ceiling (confidence: 1.00, source: mask2former)
+   29. cabinet (confidence: 1.00, source: mask2former)
+   30. door (confidence: 1.00, source: mask2former)
+   31. plant (confidence: 1.00, source: mask2former)
+   32. mirror (confidence: 1.00, source: mask2former)
+   33. rug (confidence: 1.00, source: mask2former)
+   34. lamp (confidence: 1.00, source: mask2former)
+   35. cushion (confidence: 1.00, source: mask2former)
+   36. box (confidence: 1.00, source: mask2former)
+   37. signboard (confidence: 1.00, source: mask2former)
+   38. coffee (confidence: 1.00, source: mask2former)
+   39. flower (confidence: 1.00, source: mask2former)
+   40. television (confidence: 1.00, source: mask2former)
+   41. bottle (confidence: 1.00, source: mask2former)
+   42. pot (confidence: 1.00, source: mask2former)
+   43. blanket (confidence: 1.00, source: mask2former)
+   44. tray (confidence: 1.00, source: mask2former)
+   45. plate (confidence: 1.00, source: mask2former)
+✅ Results stored in session state
+🔄 Refreshing UI...
+🏁 Detection process finished
+============================================================
+
+🔍 Component returned data: <class 'streamlit.delta_generator.DeltaGenerator'>
+📊 Raw selected_data: DeltaGenerator(_provided_cursor=LockedCursor(_index=6, _parent_path=(), _props={'delta_type': 'iframe', 'add_rows_metadata': None}), _parent=DeltaGenerator(), _form_data=FormData(form_id=''))
+🔧 Auto-selecting furniture items...
+✅ Auto-selected 12 items
+⚠️ No selection data received from component
+📊 UI State - Selected objects: 12
+✅ Showing Find Products button...
+🔍 Component returned data: <class 'streamlit.delta_generator.DeltaGenerator'>
+📊 Raw selected_data: DeltaGenerator(_provided_cursor=LockedCursor(_index=6, _parent_path=(), _props={'delta_type': 'iframe', 'add_rows_metadata': None}), _parent=DeltaGenerator(), _form_data=FormData(form_id=''))
+⚠️ No selection data received from component
+📊 UI State - Selected objects: 12
+✅ Showing Find Products button...
+
+============================================================
+🛒 STARTING PRODUCT SEARCH
+📦 Selected objects: 12
+============================================================
+🔧 Step 1: Processing objects (cropping & feature extraction)...
+📊 Selected objects breakdown:
+   - chair: 2
+   - couch: 1
+   - cushion: 1
+   - sofa: 1
+   - table: 1
+   - vase: 6
+🔧 crop_and_save_selected_objects called with auto_search=True
+📊 Image available: True, Selected objects: 12
+📁 Output directory: output/crops
+🎨 Generating caption for object 0: vase
+✅ Caption generated: A rustic ceramic vase with a textured blue and ear...
+🔧 Extracting CLIP embedding for vase...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 1: table
+✅ Caption generated: A contemporary dark brown wooden dining table with...
+🔧 Extracting CLIP embedding for table...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 2: chair
+✅ Caption generated: A rustic wooden dining set featuring a round dark ...
+🔧 Extracting CLIP embedding for chair...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 3: chair
+✅ Caption generated: A contemporary dining chair with a dark brown wood...
+🔧 Extracting CLIP embedding for chair...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 4: vase
+✅ Caption generated: A rustic clay pitcher with an earthy brown finish,...
+🔧 Extracting CLIP embedding for vase...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 5: sofa
+✅ Caption generated: A contemporary beige fabric sofa with teal accent ...
+🔧 Extracting CLIP embedding for sofa...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 6: vase
+✅ Caption generated: A rustic ceramic vase in earthy brown with green l...
+🔧 Extracting CLIP embedding for vase...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 7: couch
+✅ Caption generated: A contemporary beige fabric sofa with teal geometr...
+🔧 Extracting CLIP embedding for couch...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 8: vase
+✅ Caption generated: A rustic, earthy brown clay pot with a rounded bod...
+🔧 Extracting CLIP embedding for vase...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 9: vase
+✅ Caption generated: A contemporary bohemian-style lamp with a natural ...
+🔧 Extracting CLIP embedding for vase...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 10: vase
+✅ Caption generated: A rustic wooden tabletop with a rich brown finish,...
+🔧 Extracting CLIP embedding for vase...
+✅ CLIP embedding extracted successfully
+🎨 Generating caption for object 11: cushion
+✅ Caption generated: A contemporary beige sofa with a geometric teal an...
+🔧 Extracting CLIP embedding for cushion...
+✅ CLIP embedding extracted successfully
+✅ Processed 12 objects successfully
+🏠 Analyzing room context for enhanced recommendations...
+🔧 Step 2: Initializing product search...
+🔍 Using HYBRID search (visual + text)
+🔧 Step 3: Running enhanced search pipeline...
+🔧 Enhanced Search Pipeline: Starting for 12 objects
+📊 Search method: hybrid, Caching: True
+🔍 Processing object 1/12: vase
+📝 Generated query: 'rustic ceramic blue and earthy brown vase...')
+🛒 SerpAPI: Starting product search for query: 'A rustic ceramic vase with a textured blue and earthy brown finish, featuring two side handles and a wide mouth, perfect for adding a natural touch to any decor.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 2/12: table
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR: Your account has run out of searches.
+ERROR:new_product_matcher:SerpAPI ERROR (Text Search): Your account has run out of searches.
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+📝 Generated query: 'contemporary modern solid wood dark brown table...')
+🛒 SerpAPI: Starting product search for query: 'A contemporary dark brown wooden dining table with matching chairs, featuring a round tabletop and simple, sturdy legs.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 3/12: chair
+📝 Generated query: 'rustic solid wood dark brown chair...')
+🛒 SerpAPI: Starting product search for query: 'A rustic wooden dining set featuring a round dark brown table and matching chairs with woven seats, ideal for a cozy kitchen setting.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 4/12: chair
+📝 Generated query: 'contemporary modern wood and fabric dark brown and beige cha...')
+🛒 SerpAPI: Starting product search for query: 'A contemporary dining chair with a dark brown wooden frame and beige fabric seat, featuring a minimalist design and clean lines.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 5/12: vase
+📝 Generated query: 'rustic clay earthy brown vase...')
+🛒 SerpAPI: Starting product search for query: 'A rustic clay pitcher with an earthy brown finish, featuring a classic rounded body and a single handle.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 6/12: sofa
+⏸️ Pausing briefly after 5 objects to avoid rate limiting...
+📝 Generated query: 'contemporary modern fabric upholstery beige and teal sofa...')
+🛒 SerpAPI: Starting product search for query: 'A contemporary beige fabric sofa with teal accent pillows, featuring clean lines and a modern aesthetic.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 7/12: vase
+📝 Generated query: 'rustic ceramic earthy brown with green accents vase...')
+🛒 SerpAPI: Starting product search for query: 'A rustic ceramic vase in earthy brown with green leaf accents, featuring a textured surface and a narrow neck.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 8/12: couch
+📝 Generated query: 'contemporary modern fabric upholstery beige and teal couch...')
+🛒 SerpAPI: Starting product search for query: 'A contemporary beige fabric sofa with teal geometric-patterned cushions, perfect for modern living room decor.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 9/12: vase
+📝 Generated query: 'rustic clay earthy brown vase...')
+🛒 SerpAPI: Starting product search for query: 'A rustic, earthy brown clay pot with a rounded body and narrow opening, ideal for adding a natural touch to modern interiors.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 10/12: vase
+📝 Generated query: 'bohemian woven rattan natural beige vase...')
+🛒 SerpAPI: Starting product search for query: 'A contemporary bohemian-style lamp with a natural beige woven rattan base, featuring a spherical shape and intricate open-weave design.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 11/12: vase
+⏸️ Pausing briefly after 10 objects to avoid rate limiting...
+📝 Generated query: 'rustic solid wood brown vase...')
+🛒 SerpAPI: Starting product search for query: 'A rustic wooden tabletop with a rich brown finish, showcasing natural grain patterns and a sturdy build, ideal for a contemporary dining setting.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🔍 Processing object 12/12: cushion
+📝 Generated query: 'contemporary modern upholstered fabric beige and teal cushio...')
+🛒 SerpAPI: Starting product search for query: 'A contemporary beige sofa with a geometric teal and beige patterned cushion, offering a modern aesthetic with clean lines.'
+🌐 Making API call to SerpAPI...
+✅ SerpAPI response received with keys: ['error']
+❌ SerpAPI ERROR: Your account has run out of searches.
+🎯 PRODUCT SEARCH COMPLETE! Found results for 12 objects
+📊 Search results summary:
+   Object combined_1: 204 products found
+   Object combined_3: 204 products found
+   Object combined_4: 204 products found
+   Object combined_6: 204 products found
+   Object combined_7: 204 products found
+   Object combined_9: 204 products found
+   Object combined_10: 204 products found
+   Object combined_14: 204 products found
+   Object combined_15: 204 products found
+   Object combined_17: 204 products found
+   Object combined_18: 204 products found
+   Object combined_34: 204 products found
+🎨 Enhancing results with style compatibility scoring...
+✅ Style scoring applied to search results
+✅ Results stored in session state
+🔄 Refreshing UI...
+🏁 Product search process finished
+============================================================
+
+🔍 Component returned data: <class 'streamlit.delta_generator.DeltaGenerator'>
+📊 Raw selected_data: DeltaGenerator(_provided_cursor=LockedCursor(_index=6, _parent_path=(), _props={'delta_type': 'iframe', 'add_rows_metadata': None}), _parent=DeltaGenerator(), _form_data=FormData(form_id=''))
+⚠️ No selection data received from component
+📊 UI State - Selected objects: 12
+✅ Showing Find Products button...
+  Stopping...

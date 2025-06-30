@@ -301,6 +301,46 @@ def create_enhanced_search_pipeline(objects: List[Dict[str, Any]],
     
     from new_product_matcher import search_products_enhanced
     
+    # SAFE INTEGRATION POINT FOR SMART SEARCH
+    # Check if smart search is enabled - this is ADDITIVE only
+    from config import USE_SMART_PRODUCT_SEARCH, SMART_SEARCH_DEBUG
+    
+    if USE_SMART_PRODUCT_SEARCH:
+        try:
+            print("🧠 Smart Search is ENABLED - attempting to use enhanced AI search")
+            from smart_search.smart_product_agent import SmartProductSearchAgent
+            smart_agent = SmartProductSearchAgent()
+            
+            # Process with smart search
+            smart_results = []
+            for idx, obj in enumerate(objects):
+                print(f"🤖 Smart Search: Processing object {idx+1}/{len(objects)}: {obj.get('class', 'unknown')}")
+                
+                products = smart_agent.search_products_intelligently(
+                    caption_data=obj.get('caption_data', {}),
+                    object_class=obj.get('class', 'furniture'),
+                    image_path=obj.get('crop_path'),
+                    clip_embedding=obj.get('clip_embedding')
+                )
+                
+                smart_results.append({
+                    'object_id': obj.get('id', idx),
+                    'object_class': obj.get('class', 'unknown'),
+                    'products': products,
+                    'search_method': 'smart_search'
+                })
+            
+            print(f"✅ Smart Search completed successfully for {len(smart_results)} objects")
+            return smart_results
+            
+        except Exception as e:
+            print(f"⚠️ Smart Search failed, falling back to standard search: {e}")
+            if SMART_SEARCH_DEBUG:
+                import traceback
+                traceback.print_exc()
+            # Fall through to existing search logic
+    
+    # EXISTING SEARCH LOGIC - UNCHANGED
     # Initialize enhanced searcher
     searcher = EnhancedProductSearcher()
     
@@ -392,4 +432,65 @@ def create_enhanced_search_pipeline(objects: List[Dict[str, Any]],
                 'products': []
             })
     
-    return enhanced_results 
+    return enhanced_results
+
+
+def enhance_search_results_with_context(search_results: List[Dict[str, Any]], 
+                                       room_context: Optional[Dict[str, Any]] = None, 
+                                       selected_objects: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """
+    Enhance existing search results with contextual scoring
+    This is ADDITIVE - preserves all existing data
+    
+    Args:
+        search_results: Original search results
+        room_context: Room analysis results (optional)
+        selected_objects: Selected objects for matching (optional)
+        
+    Returns:
+        Enhanced search results with style scoring
+    """
+    if not room_context:
+        # Return unchanged if no context available
+        return search_results
+    
+    try:
+        from style_scorer import StyleCompatibilityScorer
+        scorer = StyleCompatibilityScorer()
+        
+        enhanced_results = []
+        for idx, result in enumerate(search_results):
+            if 'products' in result and isinstance(result['products'], list):
+                # Get the corresponding selected object
+                selected_object = selected_objects[idx] if selected_objects and idx < len(selected_objects) else {}
+                
+                # Enhance products with context scores
+                enhanced_products = scorer.score_products(
+                    result['products'],
+                    room_context,
+                    selected_object
+                )
+                
+                # Apply session boosting if available
+                try:
+                    from session_tracker import SessionTracker
+                    enhanced_products = SessionTracker.boost_similar_products(enhanced_products)
+                except:
+                    pass
+                
+                # Create enhanced result preserving original structure
+                enhanced_result = result.copy()
+                enhanced_result['products'] = enhanced_products
+                enhanced_result['enhancement_applied'] = True
+                enhanced_results.append(enhanced_result)
+            else:
+                # Pass through unchanged if structure is different
+                enhanced_results.append(result)
+        
+        logger.info(f"Enhanced {len(enhanced_results)} search results with context scoring")
+        return enhanced_results
+        
+    except Exception as e:
+        logger.error(f"Failed to enhance search results: {e}")
+        # Return original results if enhancement fails
+        return search_results 

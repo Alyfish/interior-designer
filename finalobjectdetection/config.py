@@ -62,6 +62,14 @@ REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
 # Feature flags
 ENABLE_REVERSE_IMAGE_SEARCH = os.getenv("REVERSE_IMAGE_SEARCH", "off").lower() in ["on", "true", "1", "yes"]
 
+# Smart Search Feature Flags (ADDITIVE - does not affect existing functionality)
+USE_SMART_PRODUCT_SEARCH = os.getenv("USE_SMART_PRODUCT_SEARCH", "false").lower() in ["true", "1", "yes", "on"]
+SMART_SEARCH_TIMEOUT = int(os.getenv("SMART_SEARCH_TIMEOUT", "30"))
+SMART_SEARCH_MAX_RESULTS = int(os.getenv("SMART_SEARCH_MAX_RESULTS", "10"))
+SMART_SEARCH_PRICE_ANALYSIS = os.getenv("SMART_SEARCH_PRICE_ANALYSIS", "true").lower() in ["true", "1", "yes", "on"]
+SMART_SEARCH_STYLE_MATCHING = os.getenv("SMART_SEARCH_STYLE_MATCHING", "true").lower() in ["true", "1", "yes", "on"]
+SMART_SEARCH_DEBUG = os.getenv("SMART_SEARCH_DEBUG", "false").lower() in ["true", "1", "yes", "on"]
+
 # You can add other keys here as needed, e.g.:
 # AMAZON_RAPID_API_KEY = os.getenv("AMAZON_RAPID_KEY")
 # BING_API_KEY = os.getenv("BING_KEY")

@@ -123,6 +123,15 @@ from new_product_matcher import (
 from config import *
 from config import REPLICATE_API_TOKEN
 
+# Enhanced recommendation imports (ADDITIVE - does not break existing features)
+try:
+    from room_context_analyzer import RoomContextAnalyzer
+    from session_tracker import SessionTracker
+    ENHANCED_RECOMMENDATIONS_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Enhanced recommendations not available: {e}")
+    ENHANCED_RECOMMENDATIONS_AVAILABLE = False
+
 # Initialize logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -1279,6 +1288,10 @@ def main_app():
     """Main function to run the Streamlit application."""
     
     init_session_state()
+    
+    # Initialize enhanced session tracking if available
+    if ENHANCED_RECOMMENDATIONS_AVAILABLE:
+        SessionTracker.init_session_state()
 
     st.sidebar.title("Settings")
     
@@ -1344,6 +1357,18 @@ def main_app():
         with col2:
             sam_status = "✅ Enabled" if (has_replicate_token and sam_enabled) else "⚠️ Disabled"
             st.sidebar.markdown(f"**SAM:** {sam_status}")
+    
+    # Add session insights display if enhanced recommendations available
+    if ENHANCED_RECOMMENDATIONS_AVAILABLE and st.session_state.get('interaction_history'):
+        with st.sidebar.expander("📊 Session Insights", expanded=False):
+            insights = SessionTracker.get_session_insights()
+            st.metric("Products Viewed", insights['products_viewed'])
+            if insights['avg_style_score'] > 0:
+                st.metric("Avg Style Match", f"{insights['avg_style_score']:.2f}")
+            if insights['avg_context_score'] > 0:
+                st.metric("Avg Context Score", f"{insights['avg_context_score']:.2f}")
+            st.metric("Session Time", f"{insights['session_duration']}s")
+            st.metric("Rooms Analyzed", insights['rooms_analyzed'])
             
     # File uploader
     uploaded_file = st.sidebar.file_uploader(
@@ -1492,11 +1517,8 @@ def display_interactive_ui(st_instance):
     # For debugging, let's auto-select some furniture items if no selection is made
     if not st.session_state.selected_objects:
         print("🔧 Auto-selecting furniture items...")
-        # Expanded list of furniture and relevant items
-        furniture_items = ["chair", "sofa", "couch", "table", "tv", "bed", "cabinet", "lamp", 
-                          "refrigerator", "vase", "bowl", "potted plant", "book", "mirror", 
-                          "rug", "cushion", "coffee", "flower", "television", "bottle", 
-                          "pot", "blanket", "tray", "plate"]
+        # Limited list for testing - only specific furniture items
+        furniture_items = ["chair", "table", "sofa", "cushion", "vase"]
         
         # Items to exclude from auto-selection
         exclude_items = ["wall", "floor", "ceiling", "door", "signboard", "box"]
@@ -1504,15 +1526,20 @@ def display_interactive_ui(st_instance):
         auto_selected = []
         for obj in st.session_state.objects:
             obj_class = obj.get("class", "").lower()
-            # Include if in furniture list OR (not in exclude list AND confidence > 0.5)
-            if (obj_class in furniture_items or 
-                (obj_class not in exclude_items and obj.get("confidence", 0) > 0.5)):
+            # Map couch to sofa for consistency
+            if obj_class == "couch":
+                obj_class = "sofa"
+            # Only include items in our limited test list
+            if obj_class in furniture_items:
                 auto_selected.append(obj)
+                # Limit to 6 items for testing
+                if len(auto_selected) >= 6:
+                    break
         
         if auto_selected:
             st.session_state.selected_objects = auto_selected
             print(f"✅ Auto-selected {len(auto_selected)} items")
-            st.info(f"🔧 Auto-selected {len(auto_selected)} items for product search")
+            st.info(f"🧪 Test Mode: Auto-selected {len(auto_selected)} items (chair, table, sofa, cushion, vase only)")
     
     if selected_data and isinstance(selected_data, dict):
         selected_objects = selected_data.get('selectedObjects', [])
@@ -1553,6 +1580,38 @@ def display_interactive_ui(st_instance):
                 if processed_objects:
                     print(f"✅ Processed {len(processed_objects)} objects successfully")
                     
+                    # ADD: Extract room context for better recommendations (if available)
+                    room_context = None
+                    if ENHANCED_RECOMMENDATIONS_AVAILABLE and st.session_state.image is not None:
+                        print("🏠 Analyzing room context for enhanced recommendations...")
+                        room_analyzer = RoomContextAnalyzer()
+                        room_context = room_analyzer.analyze_room_context(
+                            st.session_state.image,
+                            st.session_state.selected_objects
+                        )
+                        
+                        # Track room upload in session
+                        SessionTracker.track_room_upload(room_context)
+                        
+                        # Store in session state for later use
+                        st.session_state.room_context = room_context
+                        
+                        # Display room insights (optional)
+                        with st.expander("🏠 Room Analysis", expanded=False):
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Room Type", room_context['room_type'].title())
+                                st.metric("Brightness", room_context['room_brightness'].title())
+                            with col2:
+                                st.metric("Furniture Count", room_context['object_density'])
+                                st.metric("Layout", room_context['spatial_layout']['distribution'].title())
+                            with col3:
+                                st.markdown("**Dominant Colors:**")
+                                colors_html = ""
+                                for color in room_context['dominant_colors'][:3]:
+                                    colors_html += f'<span style="background-color: rgb{color}; padding: 2px 10px; margin: 2px; display: inline-block;">⬤</span>'
+                                st.markdown(colors_html, unsafe_allow_html=True)
+                    
                     # Step 2: Search for products using the full power of new_product_matcher
                     print("🔧 Step 2: Initializing product search...")
                     from new_product_matcher import search_products_with_visual_similarity, ENABLE_REVERSE_IMAGE_SEARCH
@@ -1587,6 +1646,17 @@ def display_interactive_ui(st_instance):
                             print(f"   Object {obj_id}: {len(products)} products found")
                         else:
                             print(f"   Object {idx}: Unknown result format")
+                    
+                    # Enhance results with context scoring if available
+                    if ENHANCED_RECOMMENDATIONS_AVAILABLE and room_context:
+                        print("🎨 Enhancing results with style compatibility scoring...")
+                        from utils.enhanced_product_search import enhance_search_results_with_context
+                        search_results = enhance_search_results_with_context(
+                            search_results,
+                            room_context,
+                            st.session_state.selected_objects
+                        )
+                        print("✅ Style scoring applied to search results")
                     
                     # Store results
                     st.session_state.product_search_results = search_results
@@ -1630,11 +1700,25 @@ def display_interactive_ui(st_instance):
                             st.session_state.product_search_results = search_results
                             st.rerun()
             
-            # Display all objects with their products
-            display_all_objects_with_products(
-                st.session_state.selected_objects,
-                st.session_state.product_search_results
-            )
+            # Display all objects with their products (with enhanced tracking if available)
+            if ENHANCED_RECOMMENDATIONS_AVAILABLE:
+                try:
+                    from enhanced_display_integration import display_all_objects_with_products_enhanced
+                    display_all_objects_with_products_enhanced(
+                        st.session_state.selected_objects,
+                        st.session_state.product_search_results
+                    )
+                except:
+                    # Fallback to original display
+                    display_all_objects_with_products(
+                        st.session_state.selected_objects,
+                        st.session_state.product_search_results
+                    )
+            else:
+                display_all_objects_with_products(
+                    st.session_state.selected_objects,
+                    st.session_state.product_search_results
+                )
     else:
         st.info("👆 Select objects from the image above to search for matching products")
 
