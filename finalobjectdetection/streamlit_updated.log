@@ -311,3 +311,8 @@ WARNING:session_tracker:Failed to track product view: 'str' object has no attrib
 WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
 WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
 WARNING:session_tracker:Failed to track product view: 'str' object has no attribute 'get'
+📊 Raw selected_data: DeltaGenerator(_provided_cursor=LockedCursor(_index=6, _parent_path=(), _props={'delta_type': 'iframe', 'add_rows_metadata': None}), _parent=DeltaGenerator(), _form_data=FormData(form_id=''))
+⚠️ No selection data received from component
+📊 UI State - Selected objects: 6
+✅ Showing Find Products button...
+  Stopping...

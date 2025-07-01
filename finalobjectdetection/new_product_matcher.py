@@ -111,10 +111,15 @@ Thought:{agent_scratchpad}
 """
 
 # --- Tool Definition --- #
-def search_products_serpapi_tool(query: str, serp_api_key: str) -> str:
+def search_products_serpapi_tool(query: str, serp_api_key: str, location_params: Optional[Dict] = None) -> str:
     """
     Use SerpAPI to search for products on Google Shopping.
     Returns formatted product results with real URLs.
+    
+    Args:
+        query: Search query
+        serp_api_key: SerpAPI key
+        location_params: Optional dict with 'gl' (country), 'location' (city), etc.
     """
     print(f"🛒 SerpAPI: Starting product search for query: '{query}'")
     logger.info(f"ProductSearchTool: Searching with query: '{query}'")
@@ -145,12 +150,20 @@ def search_products_serpapi_tool(query: str, serp_api_key: str) -> str:
                     return generate_mock_products(query)
 
         print("🌐 Making API call to SerpAPI...")
-        search = GoogleSearch({
+        # Base search parameters
+        search_params = {
             "engine": "google_shopping",
             "q": query,
             "api_key": serp_api_key,
             "num": 10
-        })
+        }
+        
+        # Add location parameters if provided
+        if location_params:
+            search_params.update(location_params)
+            print(f"📍 Using location: {location_params.get('gl', 'default')} - {location_params.get('location', 'no city')}")
+        
+        search = GoogleSearch(search_params)
         results = search.get_dict()
         
         print(f"✅ SerpAPI response received with keys: {list(results.keys())}")
@@ -224,7 +237,7 @@ def generate_mock_products(query: str) -> str:
 
 # --- NEW: Reverse Image Search Functions --- #
 
-def search_products_reverse_image_serpapi(image_path: str, serp_api_key: str, query_text: str = "") -> str:
+def search_products_reverse_image_serpapi(image_path: str, serp_api_key: str, query_text: str = "", location_params: Optional[Dict] = None) -> str:
     """
     Use SerpAPI Google Reverse Image for reverse image search to find similar products.
     Based on: https://serpapi.com/google-reverse-image-api
@@ -279,6 +292,11 @@ def search_products_reverse_image_serpapi(image_path: str, serp_api_key: str, qu
             "gl": "us",
             "hl": "en"
         }
+        
+        # Add location parameters if provided
+        if location_params:
+            search_params.update(location_params)
+            print(f"📍 Visual search using location: {location_params.get('gl', 'default')}")
         # Add an auxiliary text hint (helps Lens rank results) if provided
         if query_text.strip():
             search_params["q"] = query_text

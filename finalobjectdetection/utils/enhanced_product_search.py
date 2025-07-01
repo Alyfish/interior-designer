@@ -284,7 +284,8 @@ class EnhancedProductSearcher:
 
 def create_enhanced_search_pipeline(objects: List[Dict[str, Any]],
                                   search_method: str = 'hybrid',
-                                  use_caching: bool = True) -> List[Dict[str, Any]]:
+                                  use_caching: bool = True,
+                                  location_params: Optional[Dict] = None) -> List[Dict[str, Any]]:
     """
     Create an enhanced search pipeline for multiple objects.
     

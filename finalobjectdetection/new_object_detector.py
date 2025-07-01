@@ -562,10 +562,13 @@ class ObjectDetector:
                 if progress_callback:
                     progress_callback("🎭 Step 2/2: Running Mask2Former to improve detection...")
                 
-                # Use reasonable timeout for combined mode
+                # Use timeout from session state if available, otherwise default
+                import streamlit as st
+                timeout = st.session_state.get('sam_timeout', 300.0)  # Default to 5 minutes
+                
                 _, m2f_objects, _ = self.mask2former_detector.detect_objects(
                     image_path, 
-                    timeout=180.0,  # Increased timeout for better reliability
+                    timeout=timeout,
                     progress_callback=lambda msg: progress_callback(f"   {msg}") if progress_callback else None
                 )
                 mask2former_objects = m2f_objects

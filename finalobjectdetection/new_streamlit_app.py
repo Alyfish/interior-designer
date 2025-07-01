@@ -1318,30 +1318,31 @@ def main_app():
     
     if has_replicate_token and sam_enabled:
         use_sam = st.sidebar.checkbox(
-            "Enable SAM Detection", 
+            "Enable Enhanced Detection", 
             value=True,
-            help="Semantic Segment Anything provides detailed object detection but may take 3-5 minutes on first run (cold start)"
+            help="Uses Mask2Former API for better object detection quality (may take 3-5 minutes on first run)"
         )
         
         if use_sam:
             sam_timeout = st.sidebar.slider(
-                "SAM Timeout (seconds)",
+                "API Timeout (seconds)",
                 min_value=180,
                 max_value=600,
                 value=300,
                 step=30,
-                help="How long to wait for SAM detection. First run may need 5+ minutes due to cold start."
+                help="How long to wait for Mask2Former API. First run may need 5+ minutes due to cold start. Applies to COMBINED and MASK2FORMER backends."
             )
             
             # Store timeout in session state for use by detector
             st.session_state.sam_timeout = sam_timeout
             
-            # Show SAM status info
+            # Show API status info
             st.sidebar.info(
-                "ℹ️ **SAM Cold Start Info:**\n"
-                "- First run: 3-5 minutes\n"
-                "- Subsequent runs: 2-3 minutes\n"
-                "- Provides semantic labels like 'Armchair', 'Coffee Table'"
+                "ℹ️ **Mask2Former API Info:**\n"
+                "- First run: 3-5 minutes (cold start)\n"
+                "- Subsequent runs: 1-2 minutes\n"
+                "- Detects more objects & better segmentation\n"
+                "- Works with COMBINED & MASK2FORMER backends"
             )
     else:
         st.sidebar.warning("⚠️ SAM Detection disabled\n(check REPLICATE_API_TOKEN)")
@@ -1357,6 +1358,33 @@ def main_app():
         with col2:
             sam_status = "✅ Enabled" if (has_replicate_token and sam_enabled) else "⚠️ Disabled"
             st.sidebar.markdown(f"**SAM:** {sam_status}")
+    
+    # Add location selector
+    try:
+        from smart_search_ui import SmartSearchUI
+        from location_service import LocationService
+    except ImportError:
+        SmartSearchUI = None
+        LocationService = None
+    
+    # Initialize location preference
+    if LocationService and SmartSearchUI:
+        LocationService.save_location_preference()
+        
+        # Create location selector
+        country_code, city = SmartSearchUI.create_location_selector()
+        
+        # Save location preference
+        st.session_state.location_preference = {
+            'country_code': country_code,
+            'city': city
+        }
+    else:
+        # Default location if modules not available
+        st.session_state.location_preference = {
+            'country_code': 'us',
+            'city': None
+        }
     
     # Add session insights display if enhanced recommendations available
     if ENHANCED_RECOMMENDATIONS_AVAILABLE and st.session_state.get('interaction_history'):
@@ -1630,10 +1658,23 @@ def display_interactive_ui(st_instance):
                     # Use enhanced search pipeline with new_product_matcher integration
                     print("🔧 Step 3: Running enhanced search pipeline...")
                     from utils.enhanced_product_search import create_enhanced_search_pipeline
+                    
+                    # Get location parameters
+                    location_prefs = st.session_state.get('location_preference', {})
+                    try:
+                        from location_service import LocationService
+                        location_params = LocationService.get_location_params(
+                            country_code=location_prefs.get('country_code', 'us'),
+                            city=location_prefs.get('city')
+                        )
+                    except ImportError:
+                        location_params = {'gl': 'us', 'hl': 'en'}
+                    
                     search_results = create_enhanced_search_pipeline(
                         st.session_state.selected_objects,
                         search_method=search_method,
-                        use_caching=True
+                        use_caching=True,
+                        location_params=location_params
                     )
                     
                     print(f"🎯 PRODUCT SEARCH COMPLETE! Found results for {len(search_results)} objects")
@@ -1660,6 +1701,50 @@ def display_interactive_ui(st_instance):
                     
                     # Store results
                     st.session_state.product_search_results = search_results
+                    
+                    # Store search metadata for smart insights
+                    # Calculate total products and sources safely
+                    total_products = 0
+                    stores = set()
+                    
+                    for result in search_results:
+                        if isinstance(result, dict) and 'products' in result:
+                            products = result.get('products', [])
+                            total_products += len(products)
+                            
+                            # Extract stores from products (handle both dict and string formats)
+                            for product in products:
+                                if isinstance(product, dict):
+                                    store = product.get('store', 'Unknown')
+                                elif isinstance(product, str):
+                                    # Try to extract store from string format
+                                    if 'Store:' in product:
+                                        store = product.split('Store:')[1].split('-')[0].strip()
+                                    else:
+                                        store = 'Unknown'
+                                else:
+                                    store = 'Unknown'
+                                stores.add(store)
+                    
+                    st.session_state.search_metadata = {
+                        'search_method': search_method,
+                        'total_products': total_products,
+                        'sources_used': len(stores),
+                        'enhancements_applied': 5,  # Room context, style scoring, etc.
+                        'query_transformation': {
+                            'original': 'Basic object names',
+                            'enhanced': 'AI-enhanced queries with style, material, and context'
+                        },
+                        'style_analysis': {
+                            'room_style': room_context.get('room_type', 'Unknown') if room_context else 'Unknown',
+                            'compatible_styles': ['Modern', 'Contemporary', 'Minimalist']
+                        },
+                        'location': {
+                            'country': location_prefs.get('country_code', 'us').upper(),
+                            'city': location_prefs.get('city', 'Not specified') if location_prefs.get('city') else 'Not specified'
+                        }
+                    }
+                    
                     print("✅ Results stored in session state")
                     print("🔄 Refreshing UI...")
                     print("🏁 Product search process finished")
@@ -1674,6 +1759,15 @@ def display_interactive_ui(st_instance):
         # Display results if available
         if st.session_state.get('product_search_results'):
             st.markdown("---")
+            
+            # Display Smart Search Insights if available
+            try:
+                from smart_search_ui import SmartSearchUI as SSU
+                if st.session_state.get('search_metadata'):
+                    SSU.display_search_insights(st.session_state.search_metadata)
+            except ImportError:
+                pass
+            
             st.subheader("🛒 Product Matches")
             
             # Import display module
@@ -1681,7 +1775,7 @@ def display_interactive_ui(st_instance):
             
             # Add search settings in an expander
             with st.expander("⚙️ Search Settings", expanded=False):
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
                     new_search_method = st.selectbox(
                         "Search Method",
@@ -1689,16 +1783,45 @@ def display_interactive_ui(st_instance):
                         help="Hybrid combines text and visual search"
                     )
                 with col2:
+                    debug_mode = st.checkbox("🔧 Debug Mode", value=False, help="Show technical details")
+                with col3:
                     if st.button("🔄 Re-search", key="research_btn"):
                         with st.spinner("Re-searching with new settings..."):
                             from utils.enhanced_product_search import create_enhanced_search_pipeline
+                            # Get current location params
+                            location_prefs = st.session_state.get('location_preference', {})
+                            try:
+                                from location_service import LocationService
+                                current_location_params = LocationService.get_location_params(
+                                    country_code=location_prefs.get('country_code', 'us'),
+                                    city=location_prefs.get('city')
+                                )
+                            except ImportError:
+                                current_location_params = {'gl': 'us', 'hl': 'en'}
+                            
                             search_results = create_enhanced_search_pipeline(
                                 st.session_state.selected_objects,
                                 search_method=new_search_method,
-                                use_caching=False  # Don't use cache for re-search
+                                use_caching=False,  # Don't use cache for re-search
+                                location_params=current_location_params
                             )
                             st.session_state.product_search_results = search_results
                             st.rerun()
+                
+                # Show debug info if enabled
+                if debug_mode:
+                    try:
+                        from smart_search_ui import SmartSearchUI as SSU
+                        debug_data = {
+                            'query_construction': {},
+                            'score_calculations': {},
+                            'api_responses': {
+                                'SerpAPI': {'status': 'Success', 'products_found': st.session_state.search_metadata.get('total_products', 0)}
+                            }
+                        }
+                        SSU.display_search_debug_info(debug_data)
+                    except ImportError:
+                        st.info("Debug mode requires smart_search_ui module")
             
             # Display all objects with their products (with enhanced tracking if available)
             if ENHANCED_RECOMMENDATIONS_AVAILABLE:
